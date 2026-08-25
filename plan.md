@@ -72,6 +72,16 @@ and swappable; geometry/rendering never depend on which state library wraps it.
   click fixes segment and chains next from its end
 - Esc / right-click ends chain; Delete removes selected wall
 - New endpoint coinciding with existing joint (within snap distance) attaches to it
+- **Joint dots**: every joint renders a small dot so chains can be closed visually
+
+### Rendering rules
+- Walls render as thick lines with butt caps
+- A wall end extends by **half of the thickest neighbor wall** at that joint, so corners
+  close without gaps; free ends stay flush so the drawn length equals the measured length
+- Selected wall shows **outer and inner dimension lines on canvas**:
+  `outer = centerline + extStart + extEnd`, `inner = centerline − extStart − extEnd`
+  (ext = neighbor thickness / 2 per connected end) — the architectural clear span
+- Joint dots make connection points visible; endpoint handles sit at true joint positions
 
 ### 4. Editing walls
 - Select wall → drag body to move whole wall, drag endpoint handles to reshape

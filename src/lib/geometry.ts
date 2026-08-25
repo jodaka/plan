@@ -27,9 +27,25 @@ export function addPt(a: Pt, b: Pt): Pt {
 	return { x: a.x + b.x, y: a.y + b.y };
 }
 
+export function mul(a: Pt, k: number): Pt {
+	return { x: a.x * k, y: a.y * k };
+}
+
 export function unit(v: Pt): Pt {
 	const l = Math.hypot(v.x, v.y) || 1;
 	return { x: v.x / l, y: v.y / l };
+}
+
+/**
+ * Returns the segment endpoints extended outward by extA/extV along the
+ * segment direction (used to fill wall corners: extend by thickness / 2).
+ */
+export function extendPts(a: Pt, b: Pt, extA: number, extB: number): [Pt, Pt] {
+	const u = unit(sub(b, a));
+	return [
+		{ x: a.x - u.x * extA, y: a.y - u.y * extA },
+		{ x: b.x + u.x * extB, y: b.y + u.y * extB }
+	];
 }
 
 /** Absolute orientation of segment a->b, degrees in [0, 180). */

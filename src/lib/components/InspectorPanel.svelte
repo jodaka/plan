@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { dist, wallAngleDeg } from '$lib/geometry';
-	import { deleteWall, setLength, setThickness } from '$lib/model/ops';
+	import { deleteWall, setLength, setThickness, wallsAtJoint } from '$lib/model/ops';
 	import { plan } from '$lib/stores/plan.svelte';
 	import { ui } from '$lib/stores/ui.svelte';
 
@@ -11,6 +11,20 @@
 	const angle = $derived(
 		wall ? wallAngleDeg(plan.doc.joints[wall.startJointId], plan.doc.joints[wall.endJointId]) : 0
 	);
+
+	const dims = $derived.by(() => {
+		if (!wall) return null;
+		const halfNeighbor = (jid: string) => {
+			let m = 0;
+			for (const o of wallsAtJoint(plan.doc, jid)) {
+				if (o.id !== wall.id) m = Math.max(m, o.thickness);
+			}
+			return m / 2;
+		};
+		const es = halfNeighbor(wall.startJointId);
+		const ee = halfNeighbor(wall.endJointId);
+		return { outer: length + es + ee, inner: Math.max(0, length - es - ee) };
+	});
 
 	function applyLength(value: number) {
 		if (!wall || !Number.isFinite(value)) return;
@@ -34,7 +48,7 @@
 		<aside class="panel">
 			<h3>Wall</h3>
 			<label>
-				<span>Length, cm</span>
+				<span>Length (centerline), cm</span>
 				<input
 					type="number"
 					min="1"
@@ -54,6 +68,10 @@
 					onchange={(e) => applyThickness(e.currentTarget.valueAsNumber)}
 				/>
 			</label>
+			{#if dims}
+				<p class="meta">Outer span: {dims.outer} cm</p>
+				<p class="meta">Inner (clear): {dims.inner} cm</p>
+			{/if}
 			<p class="meta">
 				Orientation: {angle}°{angle === 0
 					? ' · horizontal'

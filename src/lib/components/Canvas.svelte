@@ -1,14 +1,19 @@
 <script lang="ts">
 	import AngleBadge from '$lib/components/AngleBadge.svelte';
+	import WallDims from '$lib/components/WallDims.svelte';
 	import WallView from '$lib/components/WallView.svelte';
 	import {
+		addPt,
 		angleBetweenDeg,
 		axisAlign,
 		dist,
+		extendPts,
 		fmtCm,
+		mul,
 		snap,
 		snapPt,
 		sub,
+		unit,
 		vectorAngleDeg,
 		wallAngleDeg,
 		type Pt
@@ -103,6 +108,75 @@
 			if (j) r[id] = { ...j, x: p.x, y: p.y };
 		}
 		return r;
+	});
+
+	/** per wall-end corner extension: half of the thickest OTHER wall at that joint */
+	const wallExts = $derived.by<Record<string, { start: number; end: number }>>(() => {
+		const res: Record<string, { start: number; end: number }> = {};
+		for (const w of Object.values(plan.doc.walls)) {
+			const maxOther = (jid: JointId) => {
+				let m = 0;
+				for (const o of Object.values(plan.doc.walls)) {
+					if (o.id === w.id) continue;
+					if (o.startJointId === jid || o.endJointId === jid) m = Math.max(m, o.thickness);
+				}
+				return m / 2;
+			};
+			res[w.id] = { start: maxOther(w.startJointId), end: maxOther(w.endJointId) };
+		}
+		return res;
+	});
+
+	// handles live in a top-level layer so wall hit-lines can never cover them
+	const handleJoints = $derived.by<Joint[]>(() => {
+		const w = ui.selectedWallId ? plan.doc.walls[ui.selectedWallId] : undefined;
+		if (!w) return [];
+		return [renderJoints[w.startJointId], renderJoints[w.endJointId]].filter(
+			(j): j is Joint => Boolean(j)
+		);
+	});
+
+	// selection highlight + dimension lines live in the same top layer: wall
+	// paint order would otherwise cover the ends of the selected wall at corners
+	const sel = $derived.by(() => {
+		const w = ui.selectedWallId ? plan.doc.walls[ui.selectedWallId] : undefined;
+		if (!w) return null;
+		const a = renderJoints[w.startJointId];
+		const b = renderJoints[w.endJointId];
+		if (!a || !b) return null;
+		const exts = wallExts[w.id] ?? { start: 0, end: 0 };
+		const [ra, rb] = extendPts(a, b, exts.start, exts.end);
+
+		// outer side = opposite of where the connected walls extend (they extend
+		// into the room); for a free end keep the default normal side
+		const u = unit(sub(b, a));
+		const n0 = { x: -u.y, y: u.x };
+		const nb = wallsAtJoint(plan.doc, w.startJointId).find((o) => o.id !== w.id);
+		let outerN = n0;
+		if (nb) {
+			const oid = nb.startJointId === w.startJointId ? nb.endJointId : nb.startJointId;
+			const o = plan.doc.joints[oid];
+			if (o && n0.x * (o.x - a.x) + n0.y * (o.y - a.y) > 0) outerN = mul(n0, -1);
+		}
+
+		const innerA = addPt(a, mul(u, exts.start));
+		const innerB = addPt(b, mul(u, -exts.end));
+		return {
+			ra,
+			rb,
+			t: w.thickness,
+			dims: {
+				ra,
+				rb,
+				innerA,
+				innerB,
+				outerN,
+				thickness: w.thickness,
+				scale: viewport.scale,
+				outer: dist(ra, rb),
+				inner: Math.max(0, dist(innerA, innerB))
+			}
+		};
 	});
 
 	const visibleRect = $derived.by(() => {
@@ -398,11 +472,46 @@
 			{/if}
 
 			{#each Object.values(plan.doc.walls) as wall (wall.id)}
-				<WallView
-					{wall}
-					joints={renderJoints}
-					selected={wall.id === ui.selectedWallId}
-					scale={viewport.scale}
+				<WallView {wall} joints={renderJoints} exts={wallExts[wall.id] ?? { start: 0, end: 0 }} scale={viewport.scale} />
+			{/each}
+
+			<!-- joint dots: make connection points visible for closing chains -->
+			{#each Object.values(renderJoints) as j (j.id)}
+				<circle class="joint-dot" cx={j.x} cy={j.y} r={3 / viewport.scale} />
+			{/each}
+
+			{#if sel}
+				<line
+					class="sel-overlay"
+					x1={sel.ra.x}
+					y1={sel.ra.y}
+					x2={sel.rb.x}
+					y2={sel.rb.y}
+					stroke="#3b82f6"
+					stroke-width={sel.t + 6 / viewport.scale}
+					opacity="0.35"
+				/>
+				<line
+					class="sel-overlay"
+					x1={sel.ra.x}
+					y1={sel.ra.y}
+					x2={sel.rb.x}
+					y2={sel.rb.y}
+					stroke="#2563eb"
+					stroke-width={sel.t}
+				/>
+				<WallDims {...sel.dims} />
+			{/if}
+
+			<!-- endpoint handles for the selected wall, above everything -->
+			{#each handleJoints as j (j.id)}
+				<circle
+					class="handle"
+					data-joint-id={j.id}
+					cx={j.x}
+					cy={j.y}
+					r={6 / viewport.scale}
+					stroke-width={2 / viewport.scale}
 				/>
 			{/each}
 
@@ -477,6 +586,18 @@
 	}
 	svg.canvas.cursor-grabbing {
 		cursor: grabbing;
+	}
+	:global(svg.canvas .joint-dot) {
+		fill: #64748b;
+		pointer-events: none;
+	}
+	:global(svg.canvas .handle) {
+		fill: #ffffff;
+		stroke: #2563eb;
+		cursor: grab;
+	}
+	:global(svg.canvas .sel-overlay) {
+		pointer-events: none;
 	}
 	.overlay {
 		position: absolute;
