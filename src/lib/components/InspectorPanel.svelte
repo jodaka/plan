@@ -1,6 +1,7 @@
 <script lang="ts">
 import { dist, fmtCm, wallAngleDeg } from '$lib/geometry';
 import { deleteWall, setInnerLength, setThickness, wallsAtJoint } from '$lib/model/ops';
+import { findRooms, roomObjectsIn } from '$lib/model/rooms';
 import { plan } from '$lib/stores/plan.svelte';
 import { ui } from '$lib/stores/ui.svelte';
 
@@ -34,8 +35,22 @@ function applyThickness(value: number) {
 
 function remove() {
   if (!wall) return;
+  // destroying a room orphans its bound entities (furniture, doors, …) —
+  // warn before the fact; deletion itself never silently drops user data
+  const rooms = findRooms(plan.doc.joints, plan.doc.walls).filter((r) => r.wallIds.includes(wall.id));
+  if (rooms.length > 0 && !confirm(confirmMessage(rooms))) return;
   plan.commit('Delete wall', deleteWall(plan.doc, wall.id));
   ui.select(null);
+}
+
+function confirmMessage(rooms: ReturnType<typeof findRooms>): string {
+  const objects = rooms.reduce((n, r) => n + Object.keys(roomObjectsIn(plan.doc, r.key)).length, 0);
+  const roomPart = rooms.length === 1 ? 'a room' : `${rooms.length} rooms`;
+  const objPart =
+    objects > 0
+      ? ` and orphan ${objects} object${objects === 1 ? '' : 's'} bound to ${rooms.length === 1 ? 'it' : 'them'}`
+      : '';
+  return `This wall is part of ${roomPart}. Deleting it will destroy ${rooms.length === 1 ? 'it' : 'them'}${objPart}. Delete anyway?`;
 }
 </script>
 

@@ -148,10 +148,11 @@ export function fmtCm(cm: number): string {
   return Number.isInteger(r) ? String(r) : r.toFixed(1);
 }
 
-/** Formats an area given in cm² as m² (2-decimal precision, no trailing zeros). */
+/** Formats an area given in cm² as m² (2-decimal precision, trailing zeros stripped). */
 export function fmtM2(cm2: number): string {
   const m2 = Math.round((cm2 / 1e4) * 100) / 100;
-  return Number.isInteger(m2) ? String(m2) : m2.toFixed(2);
+  if (Number.isInteger(m2)) return String(m2);
+  return m2.toFixed(2).replace(/0$/, '');
 }
 
 /**

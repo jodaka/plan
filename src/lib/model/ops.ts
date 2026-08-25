@@ -6,6 +6,7 @@ import {
   type Joint,
   type JointId,
   type PlanDoc,
+  type RoomObject,
   type Wall,
   type WallId,
 } from '../types';
@@ -13,15 +14,15 @@ import {
 export const MIN_WALL_LENGTH = 1; // cm
 
 export function emptyDoc(): PlanDoc {
-  return { version: 1, joints: {}, walls: {} };
+  return { version: 1, joints: {}, walls: {}, roomObjects: {} };
 }
 
 function newId(): string {
   return crypto.randomUUID();
 }
 
-function copyDoc(joints: PlanDoc['joints'], walls: PlanDoc['walls']): PlanDoc {
-  return { version: 1, joints, walls };
+function copyDoc(joints: PlanDoc['joints'], walls: PlanDoc['walls'], roomObjects: PlanDoc['roomObjects']): PlanDoc {
+  return { version: 1, joints, walls, roomObjects };
 }
 
 export function findJointNear(doc: PlanDoc, p: Pt, tolCm: number): Joint | null {
@@ -81,14 +82,14 @@ export function addWall(
     thickness,
   };
   const walls = { ...doc.walls, [wall.id]: wall };
-  return { doc: copyDoc(joints, walls), wallId: wall.id };
+  return { doc: copyDoc(joints, walls, doc.roomObjects), wallId: wall.id };
 }
 
 export function moveJoint(doc: PlanDoc, jointId: JointId, p: Pt): PlanDoc {
   const j = doc.joints[jointId];
   if (!j || (j.x === p.x && j.y === p.y)) return doc;
   const joints = { ...doc.joints, [jointId]: { ...j, x: p.x, y: p.y } };
-  return copyDoc(joints, doc.walls);
+  return copyDoc(joints, doc.walls, doc.roomObjects);
 }
 
 export function clampThickness(t: number): number {
@@ -164,7 +165,7 @@ export function setThickness(doc: PlanDoc, wallId: WallId, thickness: number): P
   }
 
   const walls = { ...next.walls, [wallId]: { ...next.walls[wallId], thickness: t } };
-  return copyDoc(next.joints, walls);
+  return copyDoc(next.joints, walls, next.roomObjects);
 }
 
 /** Sets wall length by moving its end joint along the current direction. */
@@ -196,7 +197,10 @@ export function setInnerLength(doc: PlanDoc, wallId: WallId, innerCm: number): P
   return setLength(doc, wallId, innerCm + extS + extE);
 }
 
-/** Deletes a wall and prunes joints left orphaned by the deletion. */
+/** Deletes a wall and prunes joints left orphaned by the deletion.
+ * Room-bound entities are deliberately KEPT: destroying their room orphans
+ * them (the delete flow warns before that happens), it never silently
+ * deletes user data. */
 export function deleteWall(doc: PlanDoc, wallId: WallId): PlanDoc {
   const w = doc.walls[wallId];
   if (!w) return doc;
@@ -211,7 +215,30 @@ export function deleteWall(doc: PlanDoc, wallId: WallId): PlanDoc {
   for (const id of [w.startJointId, w.endJointId]) {
     if (!used.has(id)) delete joints[id];
   }
-  return copyDoc(joints, walls);
+  return copyDoc(joints, walls, doc.roomObjects);
+}
+
+/** Adds an entity bound to the room with the given key. Returns null when the position is not finite. */
+export function addRoomObject(
+  doc: PlanDoc,
+  roomId: string,
+  kind: string,
+  pos: Pt,
+): { doc: PlanDoc; object: RoomObject | null } {
+  if (!Number.isFinite(pos.x) || !Number.isFinite(pos.y) || roomId === '' || kind === '') {
+    return { doc, object: null };
+  }
+  const object: RoomObject = { id: newId(), roomId, kind, x: pos.x, y: pos.y };
+  const roomObjects = { ...doc.roomObjects, [object.id]: object };
+  return { doc: copyDoc(doc.joints, doc.walls, roomObjects), object };
+}
+
+/** Removes a room-bound entity; no-op when the id is unknown. */
+export function removeRoomObject(doc: PlanDoc, objectId: string): PlanDoc {
+  if (!doc.roomObjects[objectId]) return doc;
+  const roomObjects = { ...doc.roomObjects };
+  delete roomObjects[objectId];
+  return copyDoc(doc.joints, doc.walls, roomObjects);
 }
 
 export interface BBox {

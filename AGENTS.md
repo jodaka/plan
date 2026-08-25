@@ -48,8 +48,12 @@ bun test           # unit tests (bun:test, tests/ directory)
 - Selected-wall overlay: outer/inner dimension lines + angle arcs at connected joints
 - On-canvas dimensions for the selected wall: outer + inner dimension lines
 - Rooms: any closed wall figure is a room (derived, never persisted) — painted
-  `rgb(250, 235, 215)` under the walls with the area (m²) at its centroid; deleting or
-  moving walls updates/dissolves rooms automatically
+  `rgb(250, 235, 215)` under the walls with the clear-floor area (inner m², inset by
+  wall halves) at its centroid; deleting or moving walls updates/dissolves rooms
+  automatically
+- Room-bound entities: `doc.roomObjects` (furniture/doors/…, keyed by the room's stable
+  wall-set key) — deleting a wall that belongs to a room asks for confirmation first
+  (it would destroy the room and orphan its objects; objects are kept, never culled)
 - Undo/redo (Ctrl/Cmd+Z, Ctrl+Shift+Z / Ctrl+Y, toolbar buttons) with labeled entries
 - Persistence: debounced localStorage (`floorplanner.doc.v1`), sanitized on load
 - Import/export (toolbar): JSON file `floorplan_<timestamp>.json` with metadata
@@ -63,7 +67,7 @@ bun test           # unit tests (bun:test, tests/ directory)
 
 ```
 src/lib/
-  types.ts                 # Joint, Wall, PlanDoc; thickness constants
+  types.ts                 # Joint, Wall, RoomObject, PlanDoc; thickness constants
   geometry.ts              # pure math: snap, angles, extendPts, fmtCm (unit = 1 cm)
   model/
     ops.ts                 # ALL document mutations as pure (doc, …) => doc functions

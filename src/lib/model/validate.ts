@@ -10,8 +10,10 @@ function num(v: unknown): v is number {
 
 /**
  * Repairs/culls malformed plan data (wrong shape, non-finite coordinates,
- * dangling joint references) so corrupt input degrades to a partial plan
- * instead of crashing the app.
+ * dangling joint references, broken room objects) so corrupt input degrades
+ * to a partial plan instead of crashing the app. Tolerates pre-roomObjects
+ * docs (field normalized to {}). Rooms themselves are derived and are never
+ * part of persisted data.
  */
 export function sanitizeDoc(data: unknown): PlanDoc | null {
   if (!isRecord(data) || data.version !== 1 || !isRecord(data.joints) || !isRecord(data.walls)) {
@@ -42,5 +44,22 @@ export function sanitizeDoc(data: unknown): PlanDoc | null {
       };
     }
   }
-  return { version: 1, joints, walls };
+
+  const roomObjects: PlanDoc['roomObjects'] = {};
+  if (isRecord(data.roomObjects)) {
+    for (const [id, o] of Object.entries(data.roomObjects)) {
+      if (
+        isRecord(o) &&
+        typeof o.roomId === 'string' &&
+        o.roomId !== '' &&
+        typeof o.kind === 'string' &&
+        o.kind !== '' &&
+        num(o.x) &&
+        num(o.y)
+      ) {
+        roomObjects[id] = { id, roomId: o.roomId, kind: o.kind, x: o.x, y: o.y };
+      }
+    }
+  }
+  return { version: 1, joints, walls, roomObjects };
 }

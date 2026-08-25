@@ -529,7 +529,8 @@ const cursorClass = $derived.by(() => {
       {/if}
 
       {#each rooms as room, i (i)}
-        <RoomView pts={room.pts} areaCm2={room.areaCm2} scale={viewport.scale} />
+        <!-- label = clear-floor (inner) area: the usable m² inside the walls -->
+        <RoomView pts={room.pts} areaCm2={room.innerAreaCm2} scale={viewport.scale} />
       {/each}
 
       {#each Object.values(plan.doc.walls) as wall (wall.id)}
