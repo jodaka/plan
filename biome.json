@@ -1,269 +1,53 @@
 {
   "$schema": "https://biomejs.dev/schemas/2.5.10/schema.json",
   "vcs": { "enabled": true, "clientKind": "git", "useIgnoreFile": true },
-  "files": { "ignoreUnknown": false },
-  "html": { "experimentalFullSupportEnabled": true },
+  "files": {
+    "ignoreUnknown": false,
+    "includes": ["src/**", "./biome.json"]
+  },
   "formatter": {
     "enabled": true,
+    "useEditorconfig": true,
+    "formatWithErrors": false,
     "indentStyle": "space",
     "indentWidth": 2,
+    "lineEnding": "lf",
     "lineWidth": 120,
-    "lineEnding": "lf"
+    "attributePosition": "auto",
+    "bracketSpacing": true,
+    "bracketSameLine": true
   },
+
+  "assist": { "actions": { "source": { "organizeImports": "off" } } },
   "linter": {
     "enabled": true,
     "rules": {
-      "recommended": false,
-      "a11y": {
-        "noAccessKey": "warn",
-        "noAriaUnsupportedElements": "warn",
-        "noDistractingElements": "warn",
-        "noHeaderScope": "warn",
-        "noRedundantAlt": "warn",
-        "noRedundantRoles": "warn",
-        "useAltText": "warn",
-        "useAnchorContent": "warn",
-        "useAriaActivedescendantWithTabindex": "warn",
-        "useAriaPropsForRole": "warn",
-        "useAriaPropsSupportedByRole": "off",
-        "useHeadingContent": "warn",
-        "useIframeTitle": "warn",
-        "useValidAnchor": "warn",
-        "useValidAriaProps": "warn",
-        "useValidAriaRole": {
-          "level": "warn",
-          "options": { "allowInvalidRoles": [], "ignoreNonDom": true }
-        },
-        "useValidAriaValues": "warn"
-      },
+      "preset": "recommended",
       "complexity": {
-        "noAdjacentSpacesInRegex": "warn",
-        "noCommaOperator": "off",
-        "noExtraBooleanCast": "error",
-        "noUselessCatch": "error",
-        "noUselessConstructor": "warn",
-        "noUselessEscapeInRegex": "warn",
-        "noUselessLabel": "warn",
-        "noUselessLoneBlockStatements": "warn",
-        "noUselessRename": "warn",
-        "noUselessStringConcat": "warn",
-        "useArrowFunction": "off",
-        "useLiteralKeys": "warn"
+        "noForEach": "off"
       },
-      "correctness": {
-        "noConstAssign": "warn",
-        "noConstantCondition": "error",
-        "noEmptyCharacterClassInRegex": "warn",
-        "noEmptyPattern": "warn",
-        "noGlobalObjectCalls": "warn",
-        "noInnerDeclarations": "error",
-        "noInvalidConstructorSuper": "error",
-        "noInvalidUseBeforeDeclaration": "warn",
-        "noNonoctalDecimalEscape": "error",
-        "noPrecisionLoss": "error",
-        "noSelfAssign": "warn",
-        "noSetterReturn": "error",
-        "noSwitchDeclarations": "error",
-        "noUndeclaredDependencies": "off",
-        "noUndeclaredVariables": "error",
-        "noUnreachable": "warn",
-        "noUnreachableSuper": "warn",
-        "noUnsafeFinally": "error",
-        "noUnsafeOptionalChaining": "error",
-        "noUnusedLabels": "warn",
-        "noUnusedVariables": {
-          "level": "warn",
-          "fix": "unsafe"
-        },
-        "useIsNan": "warn",
-        "useValidForDirection": "error",
-        "useValidTypeof": "warn",
-        "useYield": "warn",
-        "useExhaustiveDependencies": "error"
-      },
-      "security": {
-        "noBlankTarget": "warn",
-        "noDangerouslySetInnerHtmlWithChildren": "warn",
-        "noGlobalEval": "warn"
-      },
-      "style": {
-        "noDefaultExport": "off",
-        "noRestrictedGlobals": {
-          "level": "error",
-          "options": {
-            "deniedGlobals": {
-              "defaultStatus": "TODO: Add a custom message here.",
-              "status": "TODO: Add a custom message here.",
-              "scroll": "TODO: Add a custom message here.",
-              "outerHeight": "TODO: Add a custom message here.",
-              "screenX": "TODO: Add a custom message here.",
-              "opener": "TODO: Add a custom message here.",
-              "onfocus": "TODO: Add a custom message here.",
-              "pageYOffset": "TODO: Add a custom message here.",
-              "addEventListener": "TODO: Add a custom message here.",
-              "defaultstatus": "TODO: Add a custom message here.",
-              "history": "TODO: Add a custom message here.",
-              "frames": "TODO: Add a custom message here.",
-              "screenY": "TODO: Add a custom message here.",
-              "focus": "TODO: Add a custom message here.",
-              "outerWidth": "TODO: Add a custom message here.",
-              "opera": "TODO: Add a custom message here.",
-              "external": "TODO: Add a custom message here.",
-              "innerHeight": "TODO: Add a custom message here.",
-              "closed": "TODO: Add a custom message here.",
-              "frameElement": "TODO: Add a custom message here.",
-              "scrollY": "TODO: Add a custom message here.",
-              "self": "TODO: Add a custom message here.",
-              "onblur": "TODO: Add a custom message here.",
-              "find": "TODO: Add a custom message here.",
-              "parent": "TODO: Add a custom message here.",
-              "top": "TODO: Add a custom message here.",
-              "moveBy": "TODO: Add a custom message here.",
-              "menubar": "TODO: Add a custom message here.",
-              "length": "TODO: Add a custom message here.",
-              "onerror": "TODO: Add a custom message here.",
-              "onresize": "TODO: Add a custom message here.",
-              "removeEventListener": "TODO: Add a custom message here.",
-              "onload": "TODO: Add a custom message here.",
-              "scrollTo": "TODO: Add a custom message here.",
-              "moveTo": "TODO: Add a custom message here.",
-              "scrollX": "TODO: Add a custom message here.",
-              "name": "TODO: Add a custom message here.",
-              "toolbar": "TODO: Add a custom message here.",
-              "innerWidth": "TODO: Add a custom message here.",
-              "location": "TODO: Add a custom message here.",
-              "locationbar": "TODO: Add a custom message here.",
-              "scrollBy": "TODO: Add a custom message here.",
-              "resizeTo": "TODO: Add a custom message here.",
-              "stop": "TODO: Add a custom message here.",
-              "scrollbars": "TODO: Add a custom message here.",
-              "blur": "TODO: Add a custom message here.",
-              "screenTop": "TODO: Add a custom message here.",
-              "confirm": "TODO: Add a custom message here.",
-              "screen": "TODO: Add a custom message here.",
-              "screenLeft": "TODO: Add a custom message here.",
-              "event": "TODO: Add a custom message here.",
-              "onunload": "TODO: Add a custom message here.",
-              "pageXOffset": "TODO: Add a custom message here.",
-              "resizeBy": "TODO: Add a custom message here.",
-              "statusbar": "TODO: Add a custom message here.",
-              "close": "TODO: Add a custom message here.",
-              "open": "TODO: Add a custom message here.",
-              "print": "TODO: Add a custom message here."
-            }
-          }
-        },
-        "useArrayLiterals": "warn",
-        "useBlockStatements": "off",
-        "useConsistentBuiltinInstantiation": "warn",
-        "useDefaultSwitchClause": "off",
-        "useThrowOnlyError": "warn"
-      },
-      "suspicious": {
-        "noAssignInExpressions": "off",
-        "noAsyncPromiseExecutor": "error",
-        "noCatchAssign": "warn",
-        "noClassAssign": "error",
-        "noCommentText": "warn",
-        "noCompareNegZero": "error",
-        "noConfusingLabels": "warn",
-        "noConsole": {
-          "level": "warn",
-          "options": { "allow": ["error", "warn", "info"] }
-        },
-        "noControlCharactersInRegex": "off",
-        "noDebugger": "error",
-        "noDoubleEquals": "warn",
-        "noDuplicateCase": "warn",
-        "noDuplicateClassMembers": "warn",
-        "noDuplicateElseIf": "error",
-        "noDuplicateJsxProps": "warn",
-        "noDuplicateObjectKeys": "warn",
-        "noDuplicateParameters": "warn",
-        "noEmptyBlockStatements": "off",
-        "noFallthroughSwitchClause": "warn",
-        "noFunctionAssign": "warn",
-        "noGlobalAssign": "warn",
-        "noImportAssign": "error",
-        "noIrregularWhitespace": "error",
-        "noLabelVar": "warn",
-        "noMisleadingCharacterClass": "error",
-        "noOctalEscape": "warn",
-        "noPrototypeBuiltins": "error",
-        "noRedeclare": "warn",
-        "noSelfCompare": "warn",
-        "noShadowRestrictedNames": "warn",
-        "noSparseArray": "warn",
-        "noTemplateCurlyInString": "warn",
-        "noUnsafeNegation": "warn",
-        "noUselessRegexBackrefs": "error",
-        "noWith": "warn",
-        "useGetterReturn": "warn",
-        "useIterableCallbackReturn": "off"
+      "a11y": {
+        "useAnchorContent": "off",
+        "noRedundantAlt": "off",
+        "useButtonType": "off",
+        "noSvgWithoutTitle": "off",
+        "noLabelWithoutControl": "off",
+        "useKeyWithClickEvents": "off",
+        "useSemanticElements": "off",
+        "noStaticElementInteractions": "off"
       }
-    },
-    "includes": ["**", "!**/.*", "!**/node_modules", "!**/dist", "!**/.svelte-kit", "!**/build"]
+    }
   },
   "javascript": {
     "formatter": {
-      "quoteStyle": "single",
-      "semicolons": "always",
-      "trailingCommas": null
+      "quoteStyle": "single"
     }
   },
-  "overrides": [
-    {
-      "linter": {
-        "rules": {
-          "correctness": { "noUndeclaredDependencies": "off" },
-          "suspicious": { "noImportCycles": "error" },
-          "style": {
-            "useImportType": "warn",
-            "useNamingConvention": {
-              "level": "error",
-              "options": {
-                "strictCase": false,
-                "requireAscii": false,
-                "conventions": [
-                  {
-                    "selector": { "kind": "enum" },
-                    "match": "(?:E)(.*)",
-                    "formats": ["PascalCase"]
-                  },
-                  {
-                    "selector": { "kind": "function" },
-                    "formats": ["camelCase", "PascalCase"]
-                  },
-                  {
-                    "selector": { "kind": "interface" },
-                    "match": "(?:I)(.*)",
-                    "formats": ["PascalCase"]
-                  },
-                  {
-                    "selector": { "kind": "typeAlias" },
-                    "match": "(?:T)(.*)",
-                    "formats": ["PascalCase"]
-                  },
-                  {
-                    "selector": { "kind": "variable" },
-                    "match": "_?_?([^_]*)",
-                    "formats": ["camelCase", "PascalCase", "CONSTANT_CASE"]
-                  },
-                  {
-                    "selector": { "kind": "typeLike" },
-                    "formats": ["PascalCase"]
-                  }
-                ]
-              }
-            }
-          }
-        }
-      }
-    },
-    { "linter": { "rules": { "style": { "noDefaultExport": "off" } } } }
-  ],
-  "assist": {
-    "enabled": true,
-    "actions": { "source": { "organizeImports": "on" } }
+  "html": {
+    "experimentalFullSupportEnabled": true,
+    "formatter": {
+      "enabled": true,
+      "bracketSameLine": true
+    }
   }
 }
