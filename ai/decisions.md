@@ -1,7 +1,7 @@
 # Design & Code Decisions
 
 Context for future maintainers (human or AI): why the floorplanner codebase is the way it is.
-Read together with `plan.md` (feature plan) and `AGENTS.md` (conventions & commands).
+Read together with `AGENTS.md` (conventions & commands).
 
 ## 1. State management: Svelte 5 runes + structurally-shared snapshot history
 
@@ -274,8 +274,39 @@ needs a number, not a string.
 ## 14. Deliberately not done (yet)
 
 - Grid visibility defaults to OFF (spec: invisible grid defines snapping; toggle exists).
-- No marquee/multi-select, no wall splitting, no rooms/areas, no doors/windows.
+- No marquee/multi-select, no wall splitting, no doors/windows.
 - Inspector length edits commit per `change` event (spinner clicks can create several
   history entries; capped by the 500-entry limit).
 - Extension geometry assumes (near-)perpendicular corners; non-right angles use the same
   t/2 extension (standard in lightweight planners, slightly imperfect miters).
+
+## 15. Rooms are derived state, never persisted
+
+**Decision**: a room is any bounded face of the wall graph, recomputed on the fly
+(`model/rooms.ts` → `findRooms(joints, walls)`); `PlanDoc` is unchanged and nothing about
+rooms is stored, saved or exported.
+
+**Why**: the requirements ("closed walls figure ⇒ room", "delete one wall ⇒ room is
+gone") describe fully derived state. Deriving it means every mutation path (delete wall,
+move joint, thickness change, import, undo) updates rooms automatically with zero
+bookkeeping and no new ways to desync. Persisting rooms would buy nothing: they carry no
+user-editable properties (yet).
+
+**Algorithm**: planar face traversal over half-edges. Each wall contributes two directed
+half-edges; at each joint the incident directions are sorted CCW by angle; walking the
+"CCW predecessor of the arrival direction" partitions all half-edges into faces. Faces
+with positive shoelace area are enclosed spaces (rooms); negative ones trace the outside.
+The predecessor (not successor) rule matters at pinched joints — two rooms sharing exactly
+one corner stay two separate faces; the successor variant merges them into one walk.
+Slivers below 1 cm² are ignored.
+
+**Rendering**: rooms paint between grid and walls (layer order in §4 updated), as
+`rgb(250, 235, 215)` polygons with the area label (`fmtM2`, 2-decimal m² precision per
+§13's spirit) at the shoelace centroid, counter-scaled font, `pointer-events: none`.
+`Canvas` computes rooms from `renderJoints` (doc joints + drag drafts), so during a joint
+drag the polygon and its area follow the cursor live, before any commit.
+
+**Dimension labels**: on-canvas wall dimensions dropped their "outer"/"inner" prefixes
+(numbers only — the teal fill still distinguishes the inner span) and rotate parallel to
+the wall via SVG `rotate(angle cx cy)`, normalized to (−90°, 90°] so numbers never render
+upside down on leftward walls.

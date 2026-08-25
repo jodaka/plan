@@ -47,6 +47,9 @@ bun test           # unit tests (bun:test, tests/ directory)
   angles and inner spans), outer span, orientation, delete
 - Selected-wall overlay: outer/inner dimension lines + angle arcs at connected joints
 - On-canvas dimensions for the selected wall: outer + inner dimension lines
+- Rooms: any closed wall figure is a room (derived, never persisted) — painted
+  `rgb(250, 235, 215)` under the walls with the area (m²) at its centroid; deleting or
+  moving walls updates/dissolves rooms automatically
 - Undo/redo (Ctrl/Cmd+Z, Ctrl+Shift+Z / Ctrl+Y, toolbar buttons) with labeled entries
 - Persistence: debounced localStorage (`floorplanner.doc.v1`), sanitized on load
 - Import/export (toolbar): JSON file `floorplan_<timestamp>.json` with metadata
@@ -64,6 +67,7 @@ src/lib/
   geometry.ts              # pure math: snap, angles, extendPts, fmtCm (unit = 1 cm)
   model/
     ops.ts                 # ALL document mutations as pure (doc, …) => doc functions
+    rooms.ts               # findRooms: bounded faces of the wall graph (derived rooms)
     storage.ts             # localStorage load/save (browser-guarded)
     validate.ts            # sanitizeDoc: repairs/culls malformed plan data (pure)
     io.ts                  # export serialize/download + import parse/validate (pure)
@@ -75,6 +79,7 @@ src/lib/
   components/
     Canvas.svelte          # svg, pointer/wheel/keyboard gestures, drafts, top layers
     WallView.svelte        # wall body + invisible fat hit-line (corner extension math)
+    RoomView.svelte        # room polygon + m² label at centroid (pointer-events: none)
     WallDims.svelte        # outer/inner dimension lines for highlighted walls
     AngleArcs.svelte       # angle arcs at joints of highlighted walls
     Toolbar.svelte         # tools, snap/grid, zoom, undo/redo, import/export
@@ -82,9 +87,6 @@ src/lib/
 src/routes/+page.svelte    # layout, global shortcuts, autosave effect
 tests/model.test.ts        # bun:test unit tests for geometry + ops
 ```
-
-Docs: `plan.md` (feature plan & build order), `ai/decisions.md` (design rationale —
-read before changing state management, rendering layers, snapping, or dimensions).
 
 ## Invariants (do not break)
 
@@ -97,8 +99,8 @@ read before changing state management, rendering layers, snapping, or dimensions
 4. `src/lib/**` internal imports are RELATIVE (bun test has no path aliases);
    components/routes use `$lib/...`. Modules imported by tests must not depend on
    `$app/*` (see `ai/decisions.md` §12).
-5. SVG layer order in Canvas is load-bearing (see `ai/decisions.md` §4): grid → walls →
-   joint dots → selection overlay → handles → dimensions. Hit-testing relies on
+5. SVG layer order in Canvas is load-bearing (see `ai/decisions.md` §4): grid → rooms →
+   walls → joint dots → selection overlay → handles → dimensions. Hit-testing relies on
    `data-wall-id` / `data-joint-id` attributes and paint order.
 6. Walls render as mitered polygons (`wallCorners`): connected ends are cut along the
    miter line shared with the thickest neighbor at that joint; free ends stay flush.

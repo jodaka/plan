@@ -1,5 +1,6 @@
 <script lang="ts">
 import AngleArcs from '$lib/components/AngleArcs.svelte';
+import RoomView from '$lib/components/RoomView.svelte';
 import WallDims from '$lib/components/WallDims.svelte';
 import WallView from '$lib/components/WallView.svelte';
 import {
@@ -18,6 +19,7 @@ import {
   wallCorners,
 } from '$lib/geometry';
 import { addWall, docBBox, findJointNear, MIN_WALL_LENGTH, moveJoint, wallsAtJoint } from '$lib/model/ops';
+import { findRooms } from '$lib/model/rooms';
 import { plan } from '$lib/stores/plan.svelte';
 import { ui } from '$lib/stores/ui.svelte';
 import { viewport } from '$lib/stores/viewport.svelte';
@@ -94,6 +96,10 @@ const renderJoints = $derived.by<Record<string, Joint>>(() => {
   }
   return r;
 });
+
+/** closed wall figures — derived live from renderJoints so rooms follow
+ * joint drags in real time; deleting any wall dissolves its room */
+const rooms = $derived(findRooms(renderJoints, plan.doc.walls));
 
 /** thickest OTHER wall at each wall end (direction into it + thickness) —
  * drives the mitered corner geometry and the inner-span math */
@@ -521,6 +527,10 @@ const cursorClass = $derived.by(() => {
             stroke-width={1 / viewport.scale} />
         {/each}
       {/if}
+
+      {#each rooms as room, i (i)}
+        <RoomView pts={room.pts} areaCm2={room.areaCm2} scale={viewport.scale} />
+      {/each}
 
       {#each Object.values(plan.doc.walls) as wall (wall.id)}
         <WallView {wall} joints={renderJoints} neighbors={wallEndNeighbors[wall.id] ?? { start: null, end: null }} />

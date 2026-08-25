@@ -31,6 +31,12 @@ const iB = $derived(addPt(innerB, mul(innerN, gap)));
 
 const u = $derived(unit(sub(rb, ra)));
 
+/** rotation parallel to the wall, normalized to (−90°, 90°] so labels stay upright */
+const rotDeg = $derived.by(() => {
+  const deg = (Math.atan2(u.y, u.x) * 180) / Math.PI;
+  return deg > 90 ? deg - 180 : deg <= -90 ? deg + 180 : deg;
+});
+
 interface Seg {
   x1: number;
   y1: number;
@@ -83,8 +89,9 @@ const iT = $derived(addPt(mul(addPt(iA, iB), 0.5), mul(innerN, 11 / scale)));
     font-size={fs}
     text-anchor="middle"
     dominant-baseline="middle"
-    stroke-width={3 / scale}>
-    outer {fmtCm(outer)} cm
+    stroke-width={3 / scale}
+    transform="rotate({rotDeg} {oT.x} {oT.y})">
+    {fmtCm(outer)}
   </text>
   <text
     class="dim-text inner"
@@ -93,8 +100,9 @@ const iT = $derived(addPt(mul(addPt(iA, iB), 0.5), mul(innerN, 11 / scale)));
     font-size={fs}
     text-anchor="middle"
     dominant-baseline="middle"
-    stroke-width={3 / scale}>
-    inner {fmtCm(inner)} cm
+    stroke-width={3 / scale}
+    transform="rotate({rotDeg} {iT.x} {iT.y})">
+    {fmtCm(inner)}
   </text>
 </g>
 

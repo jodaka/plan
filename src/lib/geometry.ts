@@ -147,3 +147,32 @@ export function fmtCm(cm: number): string {
   const r = Math.round(cm * 10) / 10;
   return Number.isInteger(r) ? String(r) : r.toFixed(1);
 }
+
+/** Formats an area given in cm² as m² (2-decimal precision, no trailing zeros). */
+export function fmtM2(cm2: number): string {
+  const m2 = Math.round((cm2 / 1e4) * 100) / 100;
+  return Number.isInteger(m2) ? String(m2) : m2.toFixed(2);
+}
+
+/**
+ * Area-weighted centroid of a simple polygon (shoelace formula); falls back
+ * to the vertex average for degenerate/zero-area input.
+ */
+export function polygonCentroid(pts: Pt[]): Pt {
+  let sum = 0;
+  let cx = 0;
+  let cy = 0;
+  for (let i = 0; i < pts.length; i++) {
+    const p = pts[i];
+    const q = pts[(i + 1) % pts.length];
+    const cross = p.x * q.y - q.x * p.y;
+    sum += cross;
+    cx += (p.x + q.x) * cross;
+    cy += (p.y + q.y) * cross;
+  }
+  if (Math.abs(sum) < 1e-9 || pts.length === 0) {
+    const n = pts.length || 1;
+    return { x: pts.reduce((s, p) => s + p.x, 0) / n, y: pts.reduce((s, p) => s + p.y, 0) / n };
+  }
+  return { x: cx / (3 * sum), y: cy / (3 * sum) };
+}
