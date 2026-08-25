@@ -17,7 +17,7 @@ import {
   type WallEndNeighbor,
   wallCorners,
 } from '$lib/geometry';
-import { addWall, docBBox, findJointNear, jointExtCm, MIN_WALL_LENGTH, moveJoint, wallsAtJoint } from '$lib/model/ops';
+import { addWall, docBBox, findJointNear, MIN_WALL_LENGTH, moveJoint, wallsAtJoint } from '$lib/model/ops';
 import { plan } from '$lib/stores/plan.svelte';
 import { ui } from '$lib/stores/ui.svelte';
 import { viewport } from '$lib/stores/viewport.svelte';
@@ -523,11 +523,7 @@ const cursorClass = $derived.by(() => {
       {/if}
 
       {#each Object.values(plan.doc.walls) as wall (wall.id)}
-        <WallView
-          {wall}
-          joints={renderJoints}
-          neighbors={wallEndNeighbors[wall.id] ?? { start: null, end: null }}
-          scale={viewport.scale} />
+        <WallView {wall} joints={renderJoints} neighbors={wallEndNeighbors[wall.id] ?? { start: null, end: null }} />
       {/each}
 
       <!-- joint dots: make connection points visible for closing chains -->

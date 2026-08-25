@@ -8,32 +8,32 @@ let showGrid = $state(false);
 let selectedWallId = $state<WallId | null>(null);
 
 export const ui = {
-	get tool(): Tool {
-		return tool;
-	},
-	setTool(t: Tool): void {
-		tool = t;
-		if (t === 'draw') selectedWallId = null;
-	},
+  get tool(): Tool {
+    return tool;
+  },
+  setTool(t: Tool): void {
+    tool = t;
+    if (t === 'draw') selectedWallId = null;
+  },
 
-	get snapEnabled(): boolean {
-		return snapEnabled;
-	},
-	toggleSnap(): void {
-		snapEnabled = !snapEnabled;
-	},
+  get snapEnabled(): boolean {
+    return snapEnabled;
+  },
+  toggleSnap(): void {
+    snapEnabled = !snapEnabled;
+  },
 
-	get showGrid(): boolean {
-		return showGrid;
-	},
-	toggleGrid(): void {
-		showGrid = !showGrid;
-	},
+  get showGrid(): boolean {
+    return showGrid;
+  },
+  toggleGrid(): void {
+    showGrid = !showGrid;
+  },
 
-	get selectedWallId(): WallId | null {
-		return selectedWallId;
-	},
-	select(wallId: WallId | null): void {
-		selectedWallId = wallId;
-	}
+  get selectedWallId(): WallId | null {
+    return selectedWallId;
+  },
+  select(wallId: WallId | null): void {
+    selectedWallId = wallId;
+  },
 };

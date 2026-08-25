@@ -10,13 +10,12 @@ interface Props {
   innerB: Pt;
   /** unit normal pointing to the outer side */
   outerN: Pt;
-  thickness: number;
   scale: number;
   outer: number;
   inner: number;
 }
 
-let { ra, rb, innerA, innerB, outerN, thickness, scale, outer, inner }: Props = $props();
+let { ra, rb, innerA, innerB, outerN, scale, outer, inner }: Props = $props();
 
 /** anchors (ra/rb = outer corners, innerA/innerB = inner-face points) sit on
  * the wall faces; dim lines float this far outside them */

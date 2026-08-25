@@ -6,14 +6,12 @@
   "scripts": {
     "dev": "vite dev",
     "build": "vite build",
-    "preview": "vite preview",
     "prepare": "svelte-kit sync || echo ''; lefthook install",
-    "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
-    "check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
+    "check": "svelte-kit sync && bun run --parallel check:svelte lint",
+    "check:svelte": "svelte-check --tsconfig ./tsconfig.json",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
-    "format": "biome format --write .",
-    "format:check": "biome format ."
+    "format": "biome format --write ."
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.10",
