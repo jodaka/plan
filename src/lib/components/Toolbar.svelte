@@ -1,8 +1,41 @@
 <script lang="ts">
 	import { docBBox } from '$lib/model/ops';
+	import { downloadPlan, parseImport } from '$lib/model/io';
 	import { plan } from '$lib/stores/plan.svelte';
 	import { ui } from '$lib/stores/ui.svelte';
 	import { viewport } from '$lib/stores/viewport.svelte';
+
+	let fileInput: HTMLInputElement | undefined = $state();
+
+	function exportPlan() {
+		downloadPlan(plan.doc);
+	}
+
+	function importClicked() {
+		if (Object.keys(plan.doc.walls).length > 0) {
+			const saveFirst = window.confirm(
+				'The current plan contains walls.\nExport it first before importing another file?'
+			);
+			if (saveFirst) downloadPlan(plan.doc);
+		}
+		fileInput?.click();
+	}
+
+	async function onFileChosen(e: Event) {
+		const input = e.currentTarget as HTMLInputElement;
+		const file = input.files?.[0];
+		input.value = ''; // allow re-choosing the same file later
+		if (!file) return;
+		const res = parseImport(await file.text());
+		if (!res.ok) {
+			window.alert(`Import failed: ${res.error}.`);
+			return;
+		}
+		plan.commit('Import plan', res.doc);
+		ui.setTool('select');
+		ui.select(null);
+		viewport.fit(docBBox(res.doc));
+	}
 </script>
 
 <div class="toolbar">
@@ -39,6 +72,11 @@
 		<button onclick={() => viewport.fit(docBBox(plan.doc))} title="Fit plan in view">Fit</button>
 	</div>
 
+	<div class="group" role="group" aria-label="File">
+		<button onclick={exportPlan} title="Download the plan as a JSON file">Export</button>
+		<button onclick={importClicked} title="Import a plan from a JSON file">Import</button>
+	</div>
+
 	<div class="group" role="group" aria-label="History">
 		<button
 			disabled={!plan.canUndo}
@@ -55,6 +93,14 @@
 			↷ Redo
 		</button>
 	</div>
+
+	<input
+		bind:this={fileInput}
+		type="file"
+		accept=".json,application/json"
+		hidden
+		onchange={onFileChosen}
+	/>
 
 	<span class="hint">Space+drag = pan · wheel = zoom</span>
 </div>

@@ -195,7 +195,48 @@ editing moves the end joint along the current direction).
 - Coverage focus: geometry primitives and every ops mutation (attach, orphan pruning,
   clamps, immutability of the input doc).
 
-## 12. Deliberately not done (yet)
+## 13. Import / export
+
+**Format** (pretty-printed JSON):
+```json
+{ "app": "floorplanner", "appVersion": "0.1.0", "exportedAt": "<ISO>", "doc": { …PlanDoc } }
+```
+- `APP_VERSION` lives in `src/lib/version.ts`, manually synced with package.json.
+  Importing package.json was avoided (keeps bun test and the build simple).
+- Filename: `floorplan_<YYYY-MM-DD_HH-mm-ss local>.json` — no colons (Windows-hostile).
+
+**Import validation chain** (`model/io.ts` → `parseImport`): JSON.parse → must be an
+object → must carry a non-empty `appVersion` string (per requirement: no version =
+foreign file = error) → file's major version must not exceed the app's major version →
+`sanitizeDoc` (shape, finite coords, dangling refs). Errors are human-readable strings
+surfaced via `alert`.
+
+**Data-loss rule**: `sanitizeDoc` silently culls broken entries (right for localStorage
+recovery), but for imports a file that *claims* walls yet yields none after sanitization
+is rejected as invalid instead of silently importing an empty plan. Partial loss (some
+valid walls) still imports the valid subset — consistent with load behavior.
+
+**Import is a history commit**: success path is `plan.commit('Import plan', doc)` —
+undoable like any edit, reusing all existing machinery. Tool resets to select, selection
+cleared, view fits the imported bbox.
+
+**Save-first flow**: if the current plan has walls, native `confirm()` offers exporting
+the current drawing before the file chooser opens (requirement). Native `confirm`/`alert`
+were chosen over building modal/toast infrastructure for v1.
+
+**bun-test constraint**: `io.ts` deliberately avoids `$app/environment` (uses a
+`typeof document` guard in `downloadPlan`) because tests import it transitively and bun
+cannot resolve kit aliases. For the same reason `sanitizeDoc` moved to
+`model/validate.ts` (pure), while `model/storage.ts` keeps the `browser` guard.
+
+## 14. Display precision
+
+All user-facing lengths/angles go through `geometry.fmtCm` (rounds to 0.1 cm = 1 mm,
+strips trailing `.0`). Raw floats must never be rendered — drag geometry produces values
+like 165.6399122740582. The length input rounds via `Math.round(v * 10) / 10` because it
+needs a number, not a string.
+
+## 15. Deliberately not done (yet)
 
 - Grid visibility defaults to OFF (spec: invisible grid defines snapping; toggle exists).
 - No marquee/multi-select, no wall splitting, no rooms/areas, no doors/windows.

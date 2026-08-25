@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { dist, wallAngleDeg } from '$lib/geometry';
+	import { dist, fmtCm, wallAngleDeg } from '$lib/geometry';
 	import { deleteWall, setLength, setThickness, wallsAtJoint } from '$lib/model/ops';
 	import { plan } from '$lib/stores/plan.svelte';
 	import { ui } from '$lib/stores/ui.svelte';
@@ -69,11 +69,11 @@
 				/>
 			</label>
 			{#if dims}
-				<p class="meta">Outer span: {dims.outer} cm</p>
-				<p class="meta">Inner (clear): {dims.inner} cm</p>
+				<p class="meta">Outer span: {fmtCm(dims.outer)} cm</p>
+				<p class="meta">Inner (clear): {fmtCm(dims.inner)} cm</p>
 			{/if}
 			<p class="meta">
-				Orientation: {angle}°{angle === 0
+				Orientation: {fmtCm(angle)}°{angle === 0
 					? ' · horizontal'
 					: angle === 90
 						? ' · vertical'

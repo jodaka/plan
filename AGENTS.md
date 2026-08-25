@@ -33,6 +33,11 @@ bun test           # unit tests (bun:test, tests/ directory)
 - On-canvas dimensions for the selected wall: outer + inner dimension lines
 - Undo/redo (Ctrl/Cmd+Z, Ctrl+Shift+Z / Ctrl+Y, toolbar buttons) with labeled entries
 - Persistence: debounced localStorage (`floorplanner.doc.v1`), sanitized on load
+- Import/export (toolbar): JSON file `floorplan_<timestamp>.json` with metadata
+  (`app`, `appVersion`, `exportedAt`, `doc`); import validates version metadata
+  (no version → error), is undoable, and offers to export the current plan first
+  when walls exist
+- All displayed lengths/angles are mm-precision (`fmtCm`); raw floats never rendered
 - Page is client-only (`export const ssr = false` in `src/routes/+page.ts`)
 
 ## Architecture
@@ -43,7 +48,10 @@ src/lib/
   geometry.ts              # pure math: snap, angles, extendPts, fmtCm (unit = 1 cm)
   model/
     ops.ts                 # ALL document mutations as pure (doc, …) => doc functions
-    storage.ts             # localStorage load/save + sanitize (browser-guarded)
+    storage.ts             # localStorage load/save (browser-guarded)
+    validate.ts            # sanitizeDoc: repairs/culls malformed plan data (pure)
+    io.ts                  # export serialize/download + import parse/validate (pure)
+  version.ts               # APP_VERSION written into export files
   stores/
     plan.svelte.ts         # doc + history: commit(label, doc)/undo/redo, $state.raw
     viewport.svelte.ts     # scale/pan, toWorld/toScreen, zoomAt/fit, clamps
@@ -67,9 +75,11 @@ read before changing state management, rendering layers, snapping, or dimensions
    New state enters history exclusively through `plan.commit(label, doc)`.
 2. Commits happen at gesture end, never per pointermove; transient drag previews live in
    Canvas `drafts` (`$state.raw`), merged into rendering only.
-3. 1 world unit = 1 cm; snap to integers when snap is on; never persist −0.
+3. 1 world unit = 1 cm; snap to integers when snap is on; never persist −0; render
+   lengths/angles only through `fmtCm` (mm precision).
 4. `src/lib/**` internal imports are RELATIVE (bun test has no path aliases);
-   components/routes use `$lib/...`.
+   components/routes use `$lib/...`. Modules imported by tests must not depend on
+   `$app/*` (see `ai/decisions.md` §13).
 5. SVG layer order in Canvas is load-bearing (see `ai/decisions.md` §4): grid → walls →
    joint dots → selection overlay → handles → dimensions. Hit-testing relies on
    `data-wall-id` / `data-joint-id` attributes and paint order.
@@ -77,6 +87,8 @@ read before changing state management, rendering layers, snapping, or dimensions
    flush. `outer = centerline + extStart + extEnd`, `inner = centerline − extStart − extEnd`.
 7. Stores are getter-based objects in `.svelte.ts`; never export reassigned rune state.
    Doc/history use `$state.raw` to preserve structural sharing.
+8. Imported files must pass `parseImport` (appVersion metadata + `sanitizeDoc`) and enter
+   history via `plan.commit('Import plan', doc)` — never assigned directly.
 
 ## Definition of done for changes
 
