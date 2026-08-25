@@ -59,18 +59,18 @@ to pixels (`viewport.scale` px per cm).
 vector output stays crisp at any zoom; floor-plan scale (hundreds of walls) is trivial for
 the DOM. Canvas would force manual hit-testing math for no benefit here.
 
-**Wall geometry**: a wall renders as a `<line>` with `stroke-width = thickness` and butt
-caps. The centerline is the joint-to-joint segment; thickness extends ±t/2 perpendicular.
-
-### Corner extension rule
-A wall end extends outward by **half of the thickest OTHER wall at that joint**
-(`wallExts` derived in Canvas, passed to WallView). Free ends (joint with only this wall)
-extend by 0 — they stay flush so the painted length equals the measured length.
-- Why neighbor's thickness, not the wall's own: with mixed thicknesses (e.g. 10cm wall
-  meeting a 20cm wall), extending by own t/2 leaves a gap; the extension must reach the
-  neighbor's far face.
-- Why max over neighbors: one extension value per end must close the corner against every
-  attached wall.
+**Wall geometry**: walls render as **mitered polygons** (`wallCorners` in geometry.ts),
+not stroked lines. A stroke with butt caps + axis extensions can only close corners when
+walls meet at exactly 90° — the perpendicular end face can't mate with the neighbor's
+side edge at any other angle, producing triangular gaps on acute corners and spikes on
+obtuse ones (plus hidden overlaps that broke the selection highlight). The polygon's
+end corners are the intersections of the wall's face lines with the thickest neighbor's
+face lines (proper miter at any angle); both walls of a joint compute the same two
+points, so their polygons tile the corner exactly — no gaps, no spikes, no hidden
+overlap. Free ends get a perpendicular cut (flush, so painted length = measured
+length). Corners more acute than ~39° (miter longer than 3× half-thickness) fall back
+to a perpendicular cut to avoid runaway spikes. The invisible hit area is the same
+polygon.
 
 ## 4. Paint-order layering in the SVG (important!)
 

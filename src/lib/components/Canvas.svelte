@@ -7,14 +7,15 @@
 		angleBetweenDeg,
 		axisAlign,
 		dist,
-		extendPts,
 		fmtCm,
 		mul,
+		type Pt,
 		snapPt,
 		sub,
 		unit,
 		vectorAngleDeg,
-		type Pt
+		type WallEndNeighbor, 
+		wallCorners
 	} from '$lib/geometry';
 	import {
 		addWall,
@@ -102,19 +103,40 @@
 		return r;
 	});
 
+	/** thickest OTHER wall at each wall end (direction into it + thickness) —
+	 * drives the mitered corner geometry and the inner-span math */
+	const wallEndNeighbors = $derived.by<
+		Record<string, { start: WallEndNeighbor | null; end: WallEndNeighbor | null }>
+	>(() => {
+		const res: Record<string, { start: WallEndNeighbor | null; end: WallEndNeighbor | null }> =
+			{};
+		for (const w of Object.values(plan.doc.walls)) {
+			const thickest = (jid: JointId): WallEndNeighbor | null => {
+				const j = plan.doc.joints[jid];
+				if (!j) return null;
+				let best: WallEndNeighbor | null = null;
+				for (const o of Object.values(plan.doc.walls)) {
+					if (o.id === w.id) continue;
+					if (o.startJointId !== jid && o.endJointId !== jid) continue;
+					const oid = o.startJointId === jid ? o.endJointId : o.startJointId;
+					const oj = plan.doc.joints[oid];
+					if (!oj) continue;
+					if (!best || o.thickness > best.t) {
+						best = { dir: unit(sub(oj, j)), t: o.thickness };
+					}
+				}
+				return best;
+			};
+			res[w.id] = { start: thickest(w.startJointId), end: thickest(w.endJointId) };
+		}
+		return res;
+	});
+
 	/** per wall-end corner extension: half of the thickest OTHER wall at that joint */
 	const wallExts = $derived.by<Record<string, { start: number; end: number }>>(() => {
 		const res: Record<string, { start: number; end: number }> = {};
-		for (const w of Object.values(plan.doc.walls)) {
-			const maxOther = (jid: JointId) => {
-				let m = 0;
-				for (const o of Object.values(plan.doc.walls)) {
-					if (o.id === w.id) continue;
-					if (o.startJointId === jid || o.endJointId === jid) m = Math.max(m, o.thickness);
-				}
-				return m / 2;
-			};
-			res[w.id] = { start: maxOther(w.startJointId), end: maxOther(w.endJointId) };
+		for (const [id, e] of Object.entries(wallEndNeighbors)) {
+			res[id] = { start: (e.start?.t ?? 0) / 2, end: (e.end?.t ?? 0) / 2 };
 		}
 		return res;
 	});
@@ -158,6 +180,7 @@
 
 	interface Highlight {
 		id: WallId;
+		corners: [Pt, Pt, Pt, Pt];
 		ra: Pt;
 		rb: Pt;
 		t: number;
@@ -175,7 +198,9 @@
 			const b = renderJoints[w.endJointId];
 			if (!a || !b) continue;
 			const exts = wallExts[id] ?? { start: 0, end: 0 };
-			const [ra, rb] = extendPts(a, b, exts.start, exts.end);
+			const ends = wallEndNeighbors[id] ?? { start: null, end: null };
+			const corners = wallCorners(a, b, w.thickness, ends.start, ends.end);
+			// corners order: [A_plus, B_plus, B_minus, A_minus] (+ = +perp(u) side)
 
 			// outer side = opposite of where the connected walls extend (they
 			// extend into the room); free ends keep the default normal side
@@ -188,11 +213,16 @@
 				const o = plan.doc.joints[oid];
 				if (o && n0.x * (o.x - a.x) + n0.y * (o.y - a.y) > 0) outerN = mul(n0, -1);
 			}
+			// dimension anchors: the polygon corners on the outer side
+			const outerIsPlus = u.x * outerN.x + u.y * outerN.y >= 0; // perp(u)·outerN >= 0
+			const ra = outerIsPlus ? corners[0] : corners[3];
+			const rb = outerIsPlus ? corners[1] : corners[2];
 
 			const innerA = addPt(a, mul(u, exts.start));
 			const innerB = addPt(b, mul(u, -exts.end));
 			out.push({
 				id,
+				corners,
 				ra,
 				rb,
 				t: w.thickness,
@@ -509,7 +539,12 @@
 			{/if}
 
 			{#each Object.values(plan.doc.walls) as wall (wall.id)}
-				<WallView {wall} joints={renderJoints} exts={wallExts[wall.id] ?? { start: 0, end: 0 }} scale={viewport.scale} />
+				<WallView
+					{wall}
+					joints={renderJoints}
+					neighbors={wallEndNeighbors[wall.id] ?? { start: null, end: null }}
+					scale={viewport.scale}
+				/>
 			{/each}
 
 			<!-- joint dots: make connection points visible for closing chains -->
@@ -518,25 +553,16 @@
 			{/each}
 
 			{#each highlights as h (h.id)}
-				<line
+				{@const pts = h.corners.map((p) => `${p.x},${p.y}`).join(' ')}
+				<polygon
 					class="sel-overlay"
-					x1={h.ra.x}
-					y1={h.ra.y}
-					x2={h.rb.x}
-					y2={h.rb.y}
+					points={pts}
+					fill="#3b82f6"
 					stroke="#3b82f6"
-					stroke-width={h.t + 6 / viewport.scale}
+					stroke-width={6 / viewport.scale}
 					opacity="0.35"
 				/>
-				<line
-					class="sel-overlay"
-					x1={h.ra.x}
-					y1={h.ra.y}
-					x2={h.rb.x}
-					y2={h.rb.y}
-					stroke="#2563eb"
-					stroke-width={h.t}
-				/>
+				<polygon class="sel-overlay" points={pts} fill="#2563eb" />
 				<WallDims {...h.dims} />
 			{/each}
 			<AngleArcs arcs={selArcs} scale={viewport.scale} />

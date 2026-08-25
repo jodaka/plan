@@ -1,85 +1,149 @@
 export interface Pt {
-	x: number;
-	y: number;
+  x: number;
+  y: number;
 }
 
 /** Grid size in cm */
 export const GRID_SIZE = 1;
 
 export function snap(value: number, grid: number = GRID_SIZE): number {
-	const snapped = Math.round(value / grid) * grid;
-	return snapped === 0 ? 0 : snapped; // avoid -0 leaking into coordinates
+  const snapped = Math.round(value / grid) * grid;
+  return snapped === 0 ? 0 : snapped; // avoid -0 leaking into coordinates
 }
 
 export function snapPt(p: Pt, grid: number = GRID_SIZE): Pt {
-	return { x: snap(p.x, grid), y: snap(p.y, grid) };
+  return { x: snap(p.x, grid), y: snap(p.y, grid) };
 }
 
 export function dist(a: Pt, b: Pt): number {
-	return Math.hypot(b.x - a.x, b.y - a.y);
+  return Math.hypot(b.x - a.x, b.y - a.y);
 }
 
 export function sub(a: Pt, b: Pt): Pt {
-	return { x: a.x - b.x, y: a.y - b.y };
+  return { x: a.x - b.x, y: a.y - b.y };
 }
 
 export function addPt(a: Pt, b: Pt): Pt {
-	return { x: a.x + b.x, y: a.y + b.y };
+  return { x: a.x + b.x, y: a.y + b.y };
 }
 
 export function mul(a: Pt, k: number): Pt {
-	return { x: a.x * k, y: a.y * k };
+  return { x: a.x * k, y: a.y * k };
 }
 
 export function unit(v: Pt): Pt {
-	const l = Math.hypot(v.x, v.y) || 1;
-	return { x: v.x / l, y: v.y / l };
+  const l = Math.hypot(v.x, v.y) || 1;
+  return { x: v.x / l, y: v.y / l };
 }
 
 /**
- * Returns the segment endpoints extended outward by extA/extV along the
+ * Returns the segment endpoints extended outward by extA/extB along the
  * segment direction (used to fill wall corners: extend by thickness / 2).
  */
 export function extendPts(a: Pt, b: Pt, extA: number, extB: number): [Pt, Pt] {
-	const u = unit(sub(b, a));
-	return [
-		{ x: a.x - u.x * extA, y: a.y - u.y * extA },
-		{ x: b.x + u.x * extB, y: b.y + u.y * extB }
-	];
+  const u = unit(sub(b, a));
+  return [
+    { x: a.x - u.x * extA, y: a.y - u.y * extA },
+    { x: b.x + u.x * extB, y: b.y + u.y * extB },
+  ];
+}
+
+/** Intersection of lines p1+t·d1 and p2+s·d2; null when (near-)parallel. */
+export function lineIntersect(p1: Pt, d1: Pt, p2: Pt, d2: Pt): Pt | null {
+  const den = d1.x * d2.y - d1.y * d2.x;
+  if (Math.abs(den) < 1e-9) return null;
+  const t = ((p2.x - p1.x) * d2.y - (p2.y - p1.y) * d2.x) / den;
+  return { x: p1.x + d1.x * t, y: p1.y + d1.y * t };
+}
+
+export interface WallEndNeighbor {
+  /** unit vector from the shared joint into the neighbor wall */
+  dir: Pt;
+  /** neighbor wall thickness, cm */
+  t: number;
+}
+
+/** Fallback threshold: miter distance beyond this many half-thicknesses bevels to a plain cut. */
+const MITER_CAP = 3;
+
+/**
+ * Corner points (quad, in winding order) of a wall body. Ends with a
+ * connected neighbor are MITERED against that neighbor's faces — both walls
+ * of a joint compute the same miter line, so their polygons tile the corner
+ * exactly with no gaps or spikes at any angle. Free ends get a perpendicular
+ * cut. Very acute corners (miter longer than MITER_CAP × half-thickness)
+ * fall back to a perpendicular cut.
+ */
+export function wallCorners(
+  a: Pt,
+  b: Pt,
+  t: number,
+  nA: WallEndNeighbor | null,
+  nB: WallEndNeighbor | null,
+): [Pt, Pt, Pt, Pt] {
+  const u = unit(sub(b, a));
+  const n = { x: -u.y, y: u.x };
+  const h = t / 2;
+  const dot = (p: Pt, q: Pt) => p.x * q.x + p.y * q.y;
+
+  const endCorners = (p: Pt, wDir: Pt, nb: WallEndNeighbor | null): [Pt, Pt] => {
+    if (!nb) {
+      const plus = addPt(p, mul(n, h));
+      const minus = addPt(p, mul(n, -h));
+      return [plus, minus];
+    }
+    const v = nb.dir;
+    const hn = nb.t / 2;
+    const nw = { x: -wDir.y, y: wDir.x };
+    const nv = { x: -v.y, y: v.x };
+    const cap = MITER_CAP * Math.max(h, hn);
+    const faceW = (side: number) => addPt(p, mul(nw, side * h));
+    const faceN = (side: number) => addPt(p, mul(nv, side * hn));
+    // the sector between wDir and v is bounded by W's face pointing toward v
+    // and N's face pointing toward wDir; the reflex sector by the opposites
+    const sw = dot(nw, v) >= 0 ? 1 : -1;
+    const sv = dot(nv, wDir) >= 0 ? 1 : -1;
+    const mSector = lineIntersect(faceW(sw), wDir, faceN(sv), v);
+    const mReflex = lineIntersect(faceW(-sw), wDir, faceN(-sv), v);
+    const c1 = mSector && dist(mSector, p) <= cap ? mSector : faceW(sw);
+    const c2 = mReflex && dist(mReflex, p) <= cap ? mReflex : faceW(-sw);
+    // order: corner on the global +n side first
+    return dot(sub(c1, p), n) >= 0 ? [c1, c2] : [c2, c1];
+  };
+
+  const [aPlus, aMinus] = endCorners(a, u, nA);
+  const [bPlus, bMinus] = endCorners(b, mul(u, -1), nB);
+  return [aPlus, bPlus, bMinus, aMinus];
 }
 
 /** Absolute orientation of segment a->b, degrees in [0, 180). */
 export function wallAngleDeg(a: Pt, b: Pt): number {
-	const deg = (Math.atan2(b.y - a.y, b.x - a.x) * 180) / Math.PI;
-	return ((deg % 180) + 180) % 180;
+  const deg = (Math.atan2(b.y - a.y, b.x - a.x) * 180) / Math.PI;
+  return ((deg % 180) + 180) % 180;
 }
 
 /** Direction of vector v, degrees in [0, 360). */
 export function vectorAngleDeg(v: Pt): number {
-	return (((Math.atan2(v.y, v.x) * 180) / Math.PI) + 360) % 360;
+  return ((Math.atan2(v.y, v.x) * 180) / Math.PI + 360) % 360;
 }
 
 /** Smallest angle between two directions, degrees in [0, 180]. */
 export function angleBetweenDeg(a: number, b: number): number {
-	const d = Math.abs(a - b) % 360;
-	return d > 180 ? 360 - d : d;
+  const d = Math.abs(a - b) % 360;
+  return d > 180 ? 360 - d : d;
 }
 
 export const HORIZ_VERT_TOL_DEG = 1;
 
 /** 'h'/'v' if segment a->b is within tolerance of horizontal/vertical, else null. */
-export function axisAlign(
-	a: Pt,
-	b: Pt,
-	tolDeg: number = HORIZ_VERT_TOL_DEG
-): 'h' | 'v' | null {
-	const ang = wallAngleDeg(a, b);
-	if (ang <= tolDeg || ang >= 180 - tolDeg) return 'h';
-	if (Math.abs(ang - 90) <= tolDeg) return 'v';
-	return null;
+export function axisAlign(a: Pt, b: Pt, tolDeg: number = HORIZ_VERT_TOL_DEG): 'h' | 'v' | null {
+  const ang = wallAngleDeg(a, b);
+  if (ang <= tolDeg || ang >= 180 - tolDeg) return 'h';
+  if (Math.abs(ang - 90) <= tolDeg) return 'v';
+  return null;
 }
 
 export function fmtCm(cm: number): string {
-	const r = Math.round(cm * 10) / 10;
-	return Number.isInteger(r) ? String(r) : r.toFixed(1);
+  const r = Math.round(cm * 10) / 10;
+  return Number.isInteger(r) ? String(r) : r.toFixed(1);
 }

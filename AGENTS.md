@@ -88,8 +88,9 @@ read before changing state management, rendering layers, snapping, or dimensions
 5. SVG layer order in Canvas is load-bearing (see `ai/decisions.md` §4): grid → walls →
    joint dots → selection overlay → handles → dimensions. Hit-testing relies on
    `data-wall-id` / `data-joint-id` attributes and paint order.
-6. Corner extension = half of the thickest neighbor wall at that joint; free ends stay
-   flush. `outer = centerline + extStart + extEnd`, `inner = centerline − extStart − extEnd`.
+6. Walls render as mitered polygons (`wallCorners`): connected ends are cut along the
+   miter line shared with the thickest neighbor at that joint; free ends stay flush.
+   `outer = centerline + extStart + extEnd`, `inner = centerline − extStart − extEnd`.
    Thickness changes compensate (`setThickness` shifts each joint along the attached
    walls' axes, preserving their angles and inner spans); length edits target the inner
    span (`setInnerLength`).
