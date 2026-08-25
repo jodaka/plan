@@ -217,7 +217,6 @@
 		const arcs: ArcInfo[] = [];
 		if (highlightIds.length === 0) return arcs;
 		const seen = new Set<string>();
-		const r = 30 / viewport.scale;
 		for (const id of highlightIds) {
 			const w = plan.doc.walls[id];
 			if (!w) continue;
@@ -238,15 +237,40 @@
 					const dN = unit(sub(nO, j));
 					const ang = angleBetweenDeg(vectorAngleDeg(dW), vectorAngleDeg(dN));
 					if (ang > 179) continue; // collinear continuation — no corner to annotate
-					const p1 = addPt(j, mul(dW, r));
-					const p2 = addPt(j, mul(dN, r));
-					const cross = dW.x * dN.y - dW.y * dN.x;
+
+					// arc from wall EDGE to wall EDGE: radius clears both wall
+					// halves; endpoints are the circle's intersections with each
+					// wall's face line on the side facing the other wall.
+					// 1.5×: user preference — arcs sit away from the corner
+					const r =
+						1.5 *
+						Math.max(
+							30 / viewport.scale,
+							Math.max(w.thickness, nb.thickness) / 2 + 8 / viewport.scale
+						);
+					const facePoint = (dSelf: Pt, dOther: Pt, tSelf: number) => {
+						let n = { x: -dSelf.y, y: dSelf.x };
+						if (n.x * dOther.x + n.y * dOther.y < 0) n = { x: -n.x, y: -n.y };
+						const half = tSelf / 2;
+						const s = Math.sqrt(Math.max(0, r * r - half * half));
+						return addPt(addPt(j, mul(n, half)), mul(dSelf, s));
+					};
+					const p1 = facePoint(dW, dN, w.thickness);
+					const p2 = facePoint(dN, dW, nb.thickness);
+					const a1 = vectorAngleDeg(sub(p1, j));
+					const a2 = vectorAngleDeg(sub(p2, j));
+					const delta = (a2 - a1 + 360) % 360;
+					const sweep = delta <= 180 ? 1 : 0;
+					const midRad = ((a1 + (sweep === 1 ? delta : -(360 - delta)) / 2) * Math.PI) / 180;
 					arcs.push({
 						p1,
 						p2,
 						r,
-						sweep: cross > 0 ? 1 : 0,
-						lp: addPt(j, mul(unit(addPt(dW, dN)), r + 14 / viewport.scale)),
+						sweep,
+						lp: {
+							x: j.x + Math.cos(midRad) * (r + 14 / viewport.scale),
+							y: j.y + Math.sin(midRad) * (r + 14 / viewport.scale)
+						},
 						text: `${fmtCm(ang)}°`
 					});
 				}

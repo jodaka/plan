@@ -111,8 +111,13 @@ extend into the room; outer is the opposite side). Free ends keep the default si
 and labels ("outer 23 cm" / "inner 3 cm") on canvas while a wall is selected;
 `InspectorPanel.svelte` mirrors the numbers. `AngleArcs.svelte` draws purple arcs with
 degree labels between each highlighted wall and the walls attached at its joints
-(skipping collinear continuations >179°); the sweep flag comes from the cross product of
-the two direction vectors.
+(skipping collinear continuations >179°). Arcs run **from wall face to wall face**: the
+radius is `1.5 × max(30px, maxT/2 + 8px)` (clears the thicker wall's half, pushed away
+from the corner by user preference), and the endpoints are that circle's intersections
+with each wall's face line on the side facing the other wall — so the arc spans the open
+gap between the bodies instead of piercing them. The label shows the true
+centerline-to-centerline angle (faces are parallel to centerlines, so face-to-face and
+centerline angles are equal).
 
 **Joint drags highlight every connected wall**: while a joint is dragged, all walls
 attached to it temporarily receive the full selection treatment (`highlightIds` in
