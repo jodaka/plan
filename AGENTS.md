@@ -17,9 +17,21 @@ canvas, edit them precisely, navigate with pan/zoom. Client-only app — no back
 bun run dev        # dev server (http://localhost:5173)
 bun run build      # production build
 bun run preview    # preview production build
-bun run check      # svelte-kit sync + svelte-check (must be 0 errors / 0 warnings)
+bun run check      # svelte-kit sync, then svelte-check ∥ format (must be 0 errors / 0 warnings)
+bun run lint       # Biome check (lint + format verification, no writes)
+bun run lint:fix   # Biome check --write (autofix lint/format/import sorting)
 bun test           # unit tests (bun:test, tests/ directory)
 ```
+
+## Code style & enforcement
+
+- All formatting/linting rules live in `biome.json` — write code that passes `bun run lint`
+  with 0 diagnostics; prefer `bun run lint:fix` over hand-fixing style issues. Never argue
+  with the formatter.
+- Commits are guarded by a lefthook `pre-commit` hook (installed via the `prepare` script):
+  staged files must pass `biome check --staged` (auto-fixable issues are fixed and re-staged)
+  and the whole project must pass `svelte-check`. Code with lint/format/type errors cannot
+  be committed — fix it rather than bypassing the hook (`--no-verify` only as a last resort).
 
 ## Current feature set
 

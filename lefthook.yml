@@ -3,3 +3,5 @@ pre-commit:
     biome:
       run: bunx biome check --write --no-errors-on-unmatched --staged
       stage_fixed: true
+    svelte-check:
+      run: bunx svelte-kit sync && bun run check:svelte
