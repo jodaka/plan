@@ -79,7 +79,7 @@ read before changing state management, rendering layers, snapping, or dimensions
    lengths/angles only through `fmtCm` (mm precision).
 4. `src/lib/**` internal imports are RELATIVE (bun test has no path aliases);
    components/routes use `$lib/...`. Modules imported by tests must not depend on
-   `$app/*` (see `ai/decisions.md` §13).
+   `$app/*` (see `ai/decisions.md` §12).
 5. SVG layer order in Canvas is load-bearing (see `ai/decisions.md` §4): grid → walls →
    joint dots → selection overlay → handles → dimensions. Hit-testing relies on
    `data-wall-id` / `data-joint-id` attributes and paint order.

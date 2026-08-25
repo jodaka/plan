@@ -195,7 +195,7 @@ editing moves the end joint along the current direction).
 - Coverage focus: geometry primitives and every ops mutation (attach, orphan pruning,
   clamps, immutability of the input doc).
 
-## 13. Import / export
+## 12. Import / export
 
 **Format** (pretty-printed JSON):
 ```json
@@ -229,14 +229,14 @@ were chosen over building modal/toast infrastructure for v1.
 cannot resolve kit aliases. For the same reason `sanitizeDoc` moved to
 `model/validate.ts` (pure), while `model/storage.ts` keeps the `browser` guard.
 
-## 14. Display precision
+## 13. Display precision
 
 All user-facing lengths/angles go through `geometry.fmtCm` (rounds to 0.1 cm = 1 mm,
 strips trailing `.0`). Raw floats must never be rendered — drag geometry produces values
 like 165.6399122740582. The length input rounds via `Math.round(v * 10) / 10` because it
 needs a number, not a string.
 
-## 15. Deliberately not done (yet)
+## 14. Deliberately not done (yet)
 
 - Grid visibility defaults to OFF (spec: invisible grid defines snapping; toggle exists).
 - No marquee/multi-select, no wall splitting, no rooms/areas, no doors/windows.
