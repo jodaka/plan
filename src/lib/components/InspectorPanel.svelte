@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { dist, fmtCm, wallAngleDeg } from '$lib/geometry';
-	import { deleteWall, setLength, setThickness, wallsAtJoint } from '$lib/model/ops';
+	import { deleteWall, setInnerLength, setThickness, wallsAtJoint } from '$lib/model/ops';
 	import { plan } from '$lib/stores/plan.svelte';
 	import { ui } from '$lib/stores/ui.svelte';
 
@@ -28,7 +28,7 @@
 
 	function applyLength(value: number) {
 		if (!wall || !Number.isFinite(value)) return;
-		plan.commit('Change wall length', setLength(plan.doc, wall.id, value));
+		plan.commit('Change wall length', setInnerLength(plan.doc, wall.id, value));
 	}
 
 	function applyThickness(value: number) {
@@ -48,12 +48,12 @@
 		<aside class="panel">
 			<h3>Wall</h3>
 			<label>
-				<span>Length (centerline), cm</span>
+				<span>Length (inner), cm</span>
 				<input
 					type="number"
 					min="1"
 					step="1"
-					value={Math.round(length * 10) / 10}
+					value={dims ? Math.round(dims.inner * 10) / 10 : 1}
 					onchange={(e) => applyLength(e.currentTarget.valueAsNumber)}
 				/>
 			</label>
@@ -70,7 +70,6 @@
 			</label>
 			{#if dims}
 				<p class="meta">Outer span: {fmtCm(dims.outer)} cm</p>
-				<p class="meta">Inner (clear): {fmtCm(dims.inner)} cm</p>
 			{/if}
 			<p class="meta">
 				Orientation: {fmtCm(angle)}°{angle === 0

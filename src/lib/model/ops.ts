@@ -1,4 +1,4 @@
-import { dist, type Pt } from '../geometry';
+import { dist, sub, unit, type Pt } from '../geometry';
 import {
 	DEFAULT_THICKNESS,
 	MAX_THICKNESS,
@@ -93,34 +93,80 @@ export function moveJoint(doc: PlanDoc, jointId: JointId, p: Pt): PlanDoc {
 	return copyDoc(doc, joints, doc.walls);
 }
 
-/**
- * Moves both joints of a wall by (dx, dy). Joints shared with other walls
- * move too, stretching the attached walls.
- */
-export function translateWall(doc: PlanDoc, wallId: WallId, dx: number, dy: number): PlanDoc {
-	const w = doc.walls[wallId];
-	if (!w || (dx === 0 && dy === 0)) return doc;
-	const joints = { ...doc.joints };
-	for (const id of [w.startJointId, w.endJointId]) {
-		const j = joints[id];
-		if (!j) continue;
-		joints[id] = { ...j, x: j.x + dx, y: j.y + dy };
-	}
-	return copyDoc(doc, joints, doc.walls);
-}
-
 export function clampThickness(t: number): number {
 	if (!Number.isFinite(t)) return DEFAULT_THICKNESS;
 	return Math.min(MAX_THICKNESS, Math.max(MIN_THICKNESS, t));
 }
 
+/** Extension of `wallId`'s end at joint `jid`: half of the thickest neighbor wall. */
+export function jointExtCm(doc: PlanDoc, wallId: WallId, jid: JointId): number {
+	let m = 0;
+	for (const o of Object.values(doc.walls)) {
+		if (o.id !== wallId && (o.startJointId === jid || o.endJointId === jid)) {
+			m = Math.max(m, o.thickness);
+		}
+	}
+	return m / 2;
+}
+
+/**
+ * Unit vector at joint `jid` pointing away from the other walls attached
+ * there, along their axes (excluding `wallId`). Moving a joint along this
+ * vector keeps every attached wall's direction — and thus the angles between
+ * walls — unchanged. With multiple neighbors it is their bisector; with none,
+ * null.
+ */
+function outwardAxisAt(doc: PlanDoc, wallId: WallId, jid: JointId): Pt | null {
+	const j = doc.joints[jid];
+	if (!j) return null;
+	let x = 0;
+	let y = 0;
+	let count = 0;
+	for (const o of Object.values(doc.walls)) {
+		if (o.id === wallId) continue;
+		if (o.startJointId !== jid && o.endJointId !== jid) continue;
+		const oid = o.startJointId === jid ? o.endJointId : o.startJointId;
+		const oj = doc.joints[oid];
+		if (!oj) continue;
+		const v = unit(sub(j, oj));
+		x += v.x;
+		y += v.y;
+		count++;
+	}
+	if (count === 0) return null;
+	const l = Math.hypot(x, y);
+	if (l < 1e-9) return null;
+	return { x: x / l, y: y / l };
+}
+
+/**
+ * Sets wall thickness. Growing a wall eats into the adjacent room, which
+ * would shorten the connected walls' inner spans — so each joint shifts by
+ * Δt/2 along the axis of the other wall(s) attached to it. That preserves
+ * their directions (the angles between walls) and their inner lengths
+ * exactly; the thickened wall itself absorbs the remaining deformation.
+ * Isolated joints don't move.
+ */
 export function setThickness(doc: PlanDoc, wallId: WallId, thickness: number): PlanDoc {
 	const w = doc.walls[wallId];
 	if (!w) return doc;
 	const t = clampThickness(thickness);
 	if (w.thickness === t) return doc;
-	const walls = { ...doc.walls, [wallId]: { ...w, thickness: t } };
-	return copyDoc(doc, doc.joints, walls);
+
+	let next = doc;
+	const delta = (t - w.thickness) / 2;
+	if (delta !== 0) {
+		for (const jid of [w.startJointId, w.endJointId]) {
+			const axis = outwardAxisAt(doc, wallId, jid);
+			const j = next.joints[jid];
+			if (axis && j) {
+				next = moveJoint(next, jid, { x: j.x + axis.x * delta, y: j.y + axis.y * delta });
+			}
+		}
+	}
+
+	const walls = { ...next.walls, [wallId]: { ...next.walls[wallId], thickness: t } };
+	return copyDoc(next, next.joints, walls);
 }
 
 /** Sets wall length by moving its end joint along the current direction. */
@@ -137,6 +183,19 @@ export function setLength(doc: PlanDoc, wallId: WallId, lengthCm: number): PlanD
 	if (cur === 0) return doc;
 	const k = l / cur;
 	return moveJoint(doc, w.endJointId, { x: a.x + vx * k, y: a.y + vy * k });
+}
+
+/**
+ * Sets the wall's INNER (clear) length — the value the inspector exposes.
+ * The centerline target is inner + joint extensions (neighbor t/2 per end),
+ * so the typed value matches what the wall measures between its neighbors.
+ */
+export function setInnerLength(doc: PlanDoc, wallId: WallId, innerCm: number): PlanDoc {
+	const w = doc.walls[wallId];
+	if (!w) return doc;
+	const extS = jointExtCm(doc, wallId, w.startJointId);
+	const extE = jointExtCm(doc, wallId, w.endJointId);
+	return setLength(doc, wallId, innerCm + extS + extE);
 }
 
 /** Deletes a wall and prunes joints left orphaned by the deletion. */

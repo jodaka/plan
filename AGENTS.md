@@ -26,10 +26,14 @@ bun test           # unit tests (bun:test, tests/ directory)
 - Canvas: wheel zoom (5%–2000%, cursor-anchored), space+drag pan, zoom-to-fit
 - 1×1 cm invisible grid; snapping ON by default (toggleable); H/V axis snap within 1°
 - Wall drawing: chained clicks, live preview with length label, attach to existing joints
-- Wall editing: select, drag body (snaps delta), drag joint handles (auto-join: shared
-  corners move all attached walls), angle badges during joint drag (H/V/degrees + pair angle)
-- Inspector: centerline length (editable), thickness (editable, clamp 1–100 cm), outer
-  span, inner clear span, orientation, delete
+- Wall editing: click to select; drag joint handles to reshape (auto-join: shared
+  corners move all attached walls). Walls are NOT translatable as wholes — joint edits
+  are the only geometry change; while dragging, every connected wall highlights with
+  outer/inner dims + angle arcs at all affected joints
+- Inspector: inner length (editable via `setInnerLength`), thickness (editable —
+  `setThickness` shifts each joint along attached walls' axes by Δt/2 to preserve their
+  angles and inner spans), outer span, orientation, delete
+- Selected-wall overlay: outer/inner dimension lines + angle arcs at connected joints
 - On-canvas dimensions for the selected wall: outer + inner dimension lines
 - Undo/redo (Ctrl/Cmd+Z, Ctrl+Shift+Z / Ctrl+Y, toolbar buttons) with labeled entries
 - Persistence: debounced localStorage (`floorplanner.doc.v1`), sanitized on load
@@ -59,8 +63,9 @@ src/lib/
   components/
     Canvas.svelte          # svg, pointer/wheel/keyboard gestures, drafts, top layers
     WallView.svelte        # wall body + invisible fat hit-line (corner extension math)
-    WallDims.svelte        # outer/inner dimension lines for selection
-    Toolbar.svelte         # tools, snap/grid, zoom, undo/redo
+    WallDims.svelte        # outer/inner dimension lines for highlighted walls
+    AngleArcs.svelte       # angle arcs at joints of highlighted walls
+    Toolbar.svelte         # tools, snap/grid, zoom, undo/redo, import/export
     InspectorPanel.svelte  # selected-wall numeric editing
 src/routes/+page.svelte    # layout, global shortcuts, autosave effect
 tests/model.test.ts        # bun:test unit tests for geometry + ops
@@ -85,6 +90,9 @@ read before changing state management, rendering layers, snapping, or dimensions
    `data-wall-id` / `data-joint-id` attributes and paint order.
 6. Corner extension = half of the thickest neighbor wall at that joint; free ends stay
    flush. `outer = centerline + extStart + extEnd`, `inner = centerline − extStart − extEnd`.
+   Thickness changes compensate (`setThickness` shifts each joint along the attached
+   walls' axes, preserving their angles and inner spans); length edits target the inner
+   span (`setInnerLength`).
 7. Stores are getter-based objects in `.svelte.ts`; never export reassigned rune state.
    Doc/history use `$state.raw` to preserve structural sharing.
 8. Imported files must pass `parseImport` (appVersion metadata + `sanitizeDoc`) and enter

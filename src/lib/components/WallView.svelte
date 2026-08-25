@@ -54,6 +54,6 @@
 	.hit {
 		stroke: transparent;
 		pointer-events: stroke;
-		cursor: move;
+		cursor: pointer;
 	}
 </style>

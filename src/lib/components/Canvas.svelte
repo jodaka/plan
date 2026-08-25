@@ -1,5 +1,5 @@
 <script lang="ts">
-	import AngleBadge from '$lib/components/AngleBadge.svelte';
+	import AngleArcs from '$lib/components/AngleArcs.svelte';
 	import WallDims from '$lib/components/WallDims.svelte';
 	import WallView from '$lib/components/WallView.svelte';
 	import {
@@ -10,27 +10,25 @@
 		extendPts,
 		fmtCm,
 		mul,
-		snap,
 		snapPt,
 		sub,
 		unit,
 		vectorAngleDeg,
-		wallAngleDeg,
 		type Pt
 	} from '$lib/geometry';
 	import {
 		addWall,
 		docBBox,
 		findJointNear,
+		jointExtCm,
 		MIN_WALL_LENGTH,
 		moveJoint,
-		translateWall,
 		wallsAtJoint
 	} from '$lib/model/ops';
 	import { plan } from '$lib/stores/plan.svelte';
 	import { ui } from '$lib/stores/ui.svelte';
 	import { viewport } from '$lib/stores/viewport.svelte';
-	import { DEFAULT_THICKNESS, type Joint, type JointId } from '$lib/types';
+	import { DEFAULT_THICKNESS, type Joint, type JointId, type WallId } from '$lib/types';
 
 	const ATTACH_PX = 12;
 	const ZOOM_WHEEL_SENSITIVITY = 0.0015;
@@ -52,12 +50,9 @@
 	type Drafts = Record<JointId, Pt>;
 	let drafts = $state.raw<Drafts>({});
 	let dragJointId = $state<JointId | null>(null);
-	let dragWallId = $state<string | null>(null);
 
 	// gesture state NOT used by rendering
 	let dragMoved = false;
-	let downWorld: Pt | null = null;
-	let dragOrigins: Drafts = {};
 	let fitted = false;
 
 	function endDraw() {
@@ -67,10 +62,7 @@
 
 	function finishDrag() {
 		dragJointId = null;
-		dragWallId = null;
 		dragMoved = false;
-		downWorld = null;
-		dragOrigins = {};
 		drafts = {};
 	}
 
@@ -127,56 +119,140 @@
 		return res;
 	});
 
-	// handles live in a top-level layer so wall hit-lines can never cover them
-	const handleJoints = $derived.by<Joint[]>(() => {
-		const w = ui.selectedWallId ? plan.doc.walls[ui.selectedWallId] : undefined;
-		if (!w) return [];
-		return [renderJoints[w.startJointId], renderJoints[w.endJointId]].filter(
-			(j): j is Joint => Boolean(j)
-		);
+	/** walls rendered with full selection treatment: the selected wall — or,
+	 * while a joint is being dragged — every wall attached to that joint, so
+	 * all affected lengths/angles annotate automatically */
+	const highlightIds = $derived.by<WallId[]>(() => {
+		if (dragJointId) return wallsAtJoint(plan.doc, dragJointId).map((w) => w.id);
+		return ui.selectedWallId ? [ui.selectedWallId] : [];
 	});
 
-	// selection highlight + dimension lines live in the same top layer: wall
-	// paint order would otherwise cover the ends of the selected wall at corners
-	const sel = $derived.by(() => {
-		const w = ui.selectedWallId ? plan.doc.walls[ui.selectedWallId] : undefined;
-		if (!w) return null;
-		const a = renderJoints[w.startJointId];
-		const b = renderJoints[w.endJointId];
-		if (!a || !b) return null;
-		const exts = wallExts[w.id] ?? { start: 0, end: 0 };
-		const [ra, rb] = extendPts(a, b, exts.start, exts.end);
-
-		// outer side = opposite of where the connected walls extend (they extend
-		// into the room); for a free end keep the default normal side
-		const u = unit(sub(b, a));
-		const n0 = { x: -u.y, y: u.x };
-		const nb = wallsAtJoint(plan.doc, w.startJointId).find((o) => o.id !== w.id);
-		let outerN = n0;
-		if (nb) {
-			const oid = nb.startJointId === w.startJointId ? nb.endJointId : nb.startJointId;
-			const o = plan.doc.joints[oid];
-			if (o && n0.x * (o.x - a.x) + n0.y * (o.y - a.y) > 0) outerN = mul(n0, -1);
+	// handles live in a top-level layer so wall hit-lines can never cover them
+	const handleJoints = $derived.by<Joint[]>(() => {
+		const seen = new Set<JointId>();
+		const out: Joint[] = [];
+		for (const id of highlightIds) {
+			const w = plan.doc.walls[id];
+			if (!w) continue;
+			for (const jid of [w.startJointId, w.endJointId]) {
+				if (seen.has(jid)) continue;
+				seen.add(jid);
+				const j = renderJoints[jid];
+				if (j) out.push(j);
+			}
 		}
+		return out;
+	});
 
-		const innerA = addPt(a, mul(u, exts.start));
-		const innerB = addPt(b, mul(u, -exts.end));
-		return {
-			ra,
-			rb,
-			t: w.thickness,
-			dims: {
+	interface DimData {
+		ra: Pt;
+		rb: Pt;
+		innerA: Pt;
+		innerB: Pt;
+		outerN: Pt;
+		thickness: number;
+		scale: number;
+		outer: number;
+		inner: number;
+	}
+
+	interface Highlight {
+		id: WallId;
+		ra: Pt;
+		rb: Pt;
+		t: number;
+		dims: DimData;
+	}
+
+	// selection highlight + dimension lines live in the same top layer: wall
+	// paint order would otherwise cover the ends of the selected walls at corners
+	const highlights = $derived.by<Highlight[]>(() => {
+		const out: Highlight[] = [];
+		for (const id of highlightIds) {
+			const w = plan.doc.walls[id];
+			if (!w) continue;
+			const a = renderJoints[w.startJointId];
+			const b = renderJoints[w.endJointId];
+			if (!a || !b) continue;
+			const exts = wallExts[id] ?? { start: 0, end: 0 };
+			const [ra, rb] = extendPts(a, b, exts.start, exts.end);
+
+			// outer side = opposite of where the connected walls extend (they
+			// extend into the room); free ends keep the default normal side
+			const u = unit(sub(b, a));
+			const n0 = { x: -u.y, y: u.x };
+			const nb = wallsAtJoint(plan.doc, w.startJointId).find((o) => o.id !== w.id);
+			let outerN = n0;
+			if (nb) {
+				const oid = nb.startJointId === w.startJointId ? nb.endJointId : nb.startJointId;
+				const o = plan.doc.joints[oid];
+				if (o && n0.x * (o.x - a.x) + n0.y * (o.y - a.y) > 0) outerN = mul(n0, -1);
+			}
+
+			const innerA = addPt(a, mul(u, exts.start));
+			const innerB = addPt(b, mul(u, -exts.end));
+			out.push({
+				id,
 				ra,
 				rb,
-				innerA,
-				innerB,
-				outerN,
-				thickness: w.thickness,
-				scale: viewport.scale,
-				outer: dist(ra, rb),
-				inner: Math.max(0, dist(innerA, innerB))
+				t: w.thickness,
+				dims: {
+					ra,
+					rb,
+					innerA,
+					innerB,
+					outerN,
+					thickness: w.thickness,
+					scale: viewport.scale,
+					outer: dist(ra, rb),
+					inner: Math.max(0, dist(innerA, innerB))
+				}
+			});
+		}
+		return out;
+	});
+
+	/** angle arcs between each highlighted wall and the walls attached at its joints */
+	const selArcs = $derived.by<ArcInfo[]>(() => {
+		const arcs: ArcInfo[] = [];
+		if (highlightIds.length === 0) return arcs;
+		const seen = new Set<string>();
+		const r = 30 / viewport.scale;
+		for (const id of highlightIds) {
+			const w = plan.doc.walls[id];
+			if (!w) continue;
+			for (const jid of [w.startJointId, w.endJointId]) {
+				const j = renderJoints[jid];
+				const oW = renderJoints[jid === w.startJointId ? w.endJointId : w.startJointId];
+				if (!j || !oW) continue;
+				const dW = unit(sub(oW, j));
+				for (const nb of wallsAtJoint(plan.doc, jid)) {
+					if (nb.id === w.id) continue;
+					// the same wall pair is visited from both sides — dedupe
+					const key = `${jid}:${[w.id, nb.id].sort().join(':')}`;
+					if (seen.has(key)) continue;
+					seen.add(key);
+					const nOid = nb.startJointId === jid ? nb.endJointId : nb.startJointId;
+					const nO = renderJoints[nOid];
+					if (!nO) continue;
+					const dN = unit(sub(nO, j));
+					const ang = angleBetweenDeg(vectorAngleDeg(dW), vectorAngleDeg(dN));
+					if (ang > 179) continue; // collinear continuation — no corner to annotate
+					const p1 = addPt(j, mul(dW, r));
+					const p2 = addPt(j, mul(dN, r));
+					const cross = dW.x * dN.y - dW.y * dN.x;
+					arcs.push({
+						p1,
+						p2,
+						r,
+						sweep: cross > 0 ? 1 : 0,
+						lp: addPt(j, mul(unit(addPt(dW, dN)), r + 14 / viewport.scale)),
+						text: `${fmtCm(ang)}°`
+					});
+				}
 			}
-		};
+		}
+		return arcs;
 	});
 
 	const visibleRect = $derived.by(() => {
@@ -225,53 +301,14 @@
 		return { x: mid.x, y: mid.y - 14, text: `${fmtCm(dist(anchor, previewEnd.p))} cm` };
 	});
 
-	interface BadgeInfo {
-		x: number;
-		y: number;
+	interface ArcInfo {
+		p1: Pt;
+		p2: Pt;
+		r: number;
+		sweep: number;
+		lp: Pt;
 		text: string;
-		kind: 'deg' | 'axis' | 'pair';
 	}
-
-	const angleInfos = $derived.by<BadgeInfo[]>(() => {
-		if (!dragJointId) return [];
-		const doc = plan.doc;
-		const p = drafts[dragJointId];
-		if (!p) return [];
-		const sp = viewport.toScreen(p.x, p.y);
-		const R = 64;
-		const out: BadgeInfo[] = [];
-		const dirs: number[] = [];
-
-		for (const w of wallsAtJoint(doc, dragJointId)) {
-			const otherId = w.startJointId === dragJointId ? w.endJointId : w.startJointId;
-			const o = doc.joints[otherId];
-			if (!o) continue;
-			const ang = vectorAngleDeg(sub(p, o));
-			dirs.push(ang);
-			const rad = (ang * Math.PI) / 180;
-			const align = axisAlign(o, p);
-			out.push({
-				x: sp.x + Math.cos(rad) * R,
-				y: sp.y + Math.sin(rad) * R,
-				text: align === 'h' ? 'H' : align === 'v' ? 'V' : `${fmtCm(wallAngleDeg(o, p))}°`,
-				kind: align ? 'axis' : 'deg'
-			});
-		}
-
-		if (dirs.length === 2) {
-			const between = angleBetweenDeg(dirs[0], dirs[1]);
-			let bis = (dirs[0] + dirs[1]) / 2;
-			if (Math.abs(bis - dirs[0]) > 90) bis += 180;
-			const rad = (bis * Math.PI) / 180;
-			out.push({
-				x: sp.x + Math.cos(rad) * (R + 34),
-				y: sp.y + Math.sin(rad) * (R + 34),
-				text: `${fmtCm(between)}°`,
-				kind: 'pair'
-			});
-		}
-		return out;
-	});
 
 	function resolveDragPoint(jointId: JointId, raw: Pt): Pt {
 		const doc = plan.doc;
@@ -337,20 +374,12 @@
 		if (jointHit && plan.doc.joints[jointHit]) {
 			dragJointId = jointHit;
 			dragMoved = false;
-			downWorld = world;
-			dragOrigins = { [jointHit]: { ...plan.doc.joints[jointHit] } };
 			return;
 		}
 		if (wallHit && plan.doc.walls[wallHit]) {
+			// walls are selected but not translatable: moving a whole wall would
+			// silently change connected walls' lengths and angles (see decisions §7)
 			ui.select(wallHit);
-			const w = plan.doc.walls[wallHit];
-			dragWallId = wallHit;
-			dragMoved = false;
-			downWorld = world;
-			dragOrigins = {
-				[w.startJointId]: { ...plan.doc.joints[w.startJointId] },
-				[w.endJointId]: { ...plan.doc.joints[w.endJointId] }
-			};
 			return;
 		}
 		ui.select(null);
@@ -366,18 +395,9 @@
 			panLast = lp;
 			return;
 		}
-		if (dragJointId && downWorld) {
+		if (dragJointId) {
 			dragMoved = true;
 			drafts = { ...drafts, [dragJointId]: resolveDragPoint(dragJointId, cursorWorld) };
-		} else if (dragWallId && downWorld) {
-			dragMoved = true;
-			const dx = ui.snapEnabled ? snap(cursorWorld.x - downWorld.x) : cursorWorld.x - downWorld.x;
-			const dy = ui.snapEnabled ? snap(cursorWorld.y - downWorld.y) : cursorWorld.y - downWorld.y;
-			const nd: Drafts = {};
-			for (const id of Object.keys(dragOrigins)) {
-				nd[id] = { x: dragOrigins[id].x + dx, y: dragOrigins[id].y + dy };
-			}
-			drafts = nd;
 		}
 	}
 
@@ -393,13 +413,6 @@
 		if (dragJointId) {
 			const p = drafts[dragJointId];
 			if (dragMoved && p) plan.commit('Move joint', moveJoint(plan.doc, dragJointId, p));
-		} else if (dragWallId) {
-			const ids = Object.keys(dragOrigins);
-			const d = ids.length > 0 ? drafts[ids[0]] : undefined;
-			const o = ids.length > 0 ? dragOrigins[ids[0]] : undefined;
-			if (dragMoved && d && o) {
-				plan.commit('Move wall', translateWall(plan.doc, dragWallId, d.x - o.x, d.y - o.y));
-			}
 		}
 		finishDrag();
 	}
@@ -480,28 +493,29 @@
 				<circle class="joint-dot" cx={j.x} cy={j.y} r={3 / viewport.scale} />
 			{/each}
 
-			{#if sel}
+			{#each highlights as h (h.id)}
 				<line
 					class="sel-overlay"
-					x1={sel.ra.x}
-					y1={sel.ra.y}
-					x2={sel.rb.x}
-					y2={sel.rb.y}
+					x1={h.ra.x}
+					y1={h.ra.y}
+					x2={h.rb.x}
+					y2={h.rb.y}
 					stroke="#3b82f6"
-					stroke-width={sel.t + 6 / viewport.scale}
+					stroke-width={h.t + 6 / viewport.scale}
 					opacity="0.35"
 				/>
 				<line
 					class="sel-overlay"
-					x1={sel.ra.x}
-					y1={sel.ra.y}
-					x2={sel.rb.x}
-					y2={sel.rb.y}
+					x1={h.ra.x}
+					y1={h.ra.y}
+					x2={h.rb.x}
+					y2={h.rb.y}
 					stroke="#2563eb"
-					stroke-width={sel.t}
+					stroke-width={h.t}
 				/>
-				<WallDims {...sel.dims} />
-			{/if}
+				<WallDims {...h.dims} />
+			{/each}
+			<AngleArcs arcs={selArcs} scale={viewport.scale} />
 
 			<!-- endpoint handles for the selected wall, above everything -->
 			{#each handleJoints as j (j.id)}
@@ -541,9 +555,6 @@
 	</svg>
 
 	<div class="overlay" aria-hidden="true">
-		{#each angleInfos as badge, i (i)}
-			<AngleBadge {badge} />
-		{/each}
 		{#if previewLabel}
 			<span class="length-label" style:left="{previewLabel.x}px" style:top="{previewLabel.y}px">
 				{previewLabel.text}

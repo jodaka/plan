@@ -109,8 +109,33 @@ extend into the room; outer is the opposite side). Free ends keep the default si
 
 **Where shown**: `WallDims.svelte` draws extension lines, dimension lines with end ticks
 and labels ("outer 23 cm" / "inner 3 cm") on canvas while a wall is selected;
-`InspectorPanel.svelte` mirrors the numbers (editable field remains centerline length —
-editing moves the end joint along the current direction).
+`InspectorPanel.svelte` mirrors the numbers. `AngleArcs.svelte` draws purple arcs with
+degree labels between each highlighted wall and the walls attached at its joints
+(skipping collinear continuations >179°); the sweep flag comes from the cross product of
+the two direction vectors.
+
+**Joint drags highlight every connected wall**: while a joint is dragged, all walls
+attached to it temporarily receive the full selection treatment (`highlightIds` in
+Canvas: highlight + outer/inner dims + angle arcs at every affected joint, deduped per
+wall pair). Moving one corner of a square therefore shows exactly what changes — 2 wall
+spans and 3 angles (the dragged corner + both far corners). Floating per-wall drag
+badges (length·angle chips, pair-angle chips) were removed as clutter: the arcs and
+dimension lines carry the same information in place, on the geometry itself.
+
+**Thickness compensation**: `setThickness` shifts each joint of the wall by Δt/2 along
+the axis of the other wall(s) attached at that joint (`outwardAxisAt`: unit vector from
+the neighbor's far end through the joint; bisector when several walls meet there). This
+keeps every connected wall's direction — hence the angles between walls — AND its inner
+length exact (the neighbor grows/shrinks along its own axis by exactly Δt/2, matching
+the ext change). The thickened wall itself absorbs the remaining deformation: with
+non-perpendicular neighbors its direction changes slightly, which is the only degree of
+freedom left (joint displacements cannot be parallel to both the neighbor axis and the
+wall axis at once). Isolated joints don't move. For perpendicular corners this reduces
+to a pure translation by Δt/2 (the historical behavior).
+
+**Length editing is inner-length editing**: the inspector's length field shows and sets
+the inner span via `setInnerLength` (centerline target = inner + Σ ext), so the typed
+value is what the wall actually measures clear between its neighbors.
 
 ## 6. Viewport & navigation
 
@@ -141,7 +166,12 @@ editing moves the end joint along the current direction).
   distance of the anchor closes the chain; Esc/right-click also end it. Endpoints attach
   to existing joints within tolerance (`addWall` with `attachTolCm`).
 - Wall body drag snaps the **delta**, not absolute positions — moving a wall keeps its
-  exact shape/length.
+  exact shape/length. *(Removed later: whole-wall translation is disabled entirely —
+  moving a wall silently changes connected walls' lengths and angles with no per-wall
+  feedback, and annotating every affected wall during the gesture would clutter the
+  canvas. Walls are click-to-select only; all reshaping happens at joints, where all
+  connected walls temporarily highlight with dimension lines and angle arcs.
+  `translateWall` was removed from ops.)*
 - Angle badges (during joint drag): per connected wall, absolute orientation with green
   H/V chip when axis-locked, plus the pairwise angle between connected walls (purple),
   positioned in screen space around the dragged joint. Rendered from a `$derived` reading

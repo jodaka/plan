@@ -6,11 +6,24 @@ import {
 	docBBox,
 	findJointNear,
 	moveJoint,
+	setInnerLength,
 	setLength,
-	setThickness,
-	translateWall
+	setThickness
 } from '../src/lib/model/ops';
 import { emptyDoc } from '../src/lib/model/ops';
+
+/** 210×210 centerline box, all walls t=10 → every inner span is 200. */
+function boxDoc() {
+	let doc = emptyDoc();
+	const sides = [
+		[{ x: 0, y: 0 }, { x: 210, y: 0 }],
+		[{ x: 210, y: 0 }, { x: 210, y: 210 }],
+		[{ x: 210, y: 210 }, { x: 0, y: 210 }],
+		[{ x: 0, y: 210 }, { x: 0, y: 0 }]
+	];
+	for (const [a, b] of sides) doc = addWall(doc, a, b, { attachTolCm: 0.01 }).doc;
+	return doc;
+}
 
 describe('geometry', () => {
 	test('snap rounds to grid', () => {
@@ -76,21 +89,6 @@ describe('ops', () => {
 		expect(b.joints[cornerId].x).toBe(100);
 	});
 
-	test('translateWall stretches attached neighbor wall', () => {
-		const a = addWall(emptyDoc(), { x: 0, y: 0 }, { x: 100, y: 0 }).doc;
-		const withB = addWall(a, { x: 100, y: 0 }, { x: 150, y: 0 }, { attachTolCm: 0.01 }).doc;
-
-		const wallAId = Object.keys(withB.walls)[0];
-		const moved = translateWall(withB, wallAId, 10, 20);
-
-		// joint shared with B moved too → B stretched to (110,20)-(150,0)
-		const bEnds = Object.values(moved.walls)[1];
-		const pts = Object.values(moved.joints).filter(
-			(j) => j.id === bEnds.startJointId || j.id === bEnds.endJointId
-		);
-		expect(pts.map((p) => `${p.x},${p.y}`).sort()).toEqual(['110,20', '150,0']);
-	});
-
 	test('setThickness clamps into [1..100]', () => {
 		const d = addWall(emptyDoc(), { x: 0, y: 0 }, { x: 50, y: 0 }).doc;
 		const id = Object.keys(d.walls)[0];
@@ -119,6 +117,93 @@ describe('ops', () => {
 		re = r.joints[e.id];
 		expect(re.x).toBe(60);
 		expect(re.y).toBe(80);
+	});
+
+	test('setThickness compensates: connected inner lengths preserved', () => {
+		const doc = boxDoc();
+		const topId = Object.keys(doc.walls)[0];
+		const leftId = Object.keys(doc.walls)[3];
+
+		const thickened = setThickness(doc, topId, 20);
+		const top = thickened.walls[topId];
+		const ta = thickened.joints[top.startJointId];
+		const tb = thickened.joints[top.endJointId];
+		// both joints shifted outward (−y) by Δt/2 = 5; own centerline unchanged
+		expect([ta.x, ta.y]).toEqual([0, -5]);
+		expect([tb.x, tb.y]).toEqual([210, -5]);
+		expect(dist(ta, tb)).toBe(210);
+
+		// left wall: centerline 215, exts 10 (top t=20) + 5 (bottom) → inner 200
+		const left = thickened.walls[leftId];
+		expect(dist(thickened.joints[left.startJointId], thickened.joints[left.endJointId])).toBe(
+			215
+		);
+
+		// thickness back down → exact original geometry restored
+		const restored = setThickness(thickened, topId, 10);
+		expect(restored.joints).toEqual(doc.joints);
+		expect(restored.walls[topId].thickness).toBe(10);
+	});
+
+	test('setThickness leaves isolated walls in place', () => {
+		const { doc } = addWall(emptyDoc(), { x: 0, y: 0 }, { x: 50, y: 0 });
+		const id = Object.keys(doc.walls)[0];
+		const changed = setThickness(doc, id, 30);
+		expect(changed.joints).toEqual(doc.joints);
+		expect(changed.walls[id].thickness).toBe(30);
+	});
+
+	test('setInnerLength targets the clear span between neighbors', () => {
+		const doc = boxDoc();
+		const leftId = Object.keys(doc.walls)[3];
+		const grown = setInnerLength(doc, leftId, 300);
+		const left = grown.walls[leftId];
+		// exts 5 + 5 → centerline target 310
+		expect(dist(grown.joints[left.startJointId], grown.joints[left.endJointId])).toBe(310);
+		// inner span now measures 300
+		expect(310 - 5 - 5).toBe(300);
+	});
+
+	test('setThickness preserves non-perpendicular neighbor angles and inner lengths', () => {
+		let doc = emptyDoc();
+		// W horizontal; N_A diagonal at 45°; N_B vertical
+		doc = addWall(doc, { x: 0, y: 0 }, { x: 100, y: 0 }, { attachTolCm: 0.01 }).doc;
+		doc = addWall(doc, { x: 0, y: 0 }, { x: 30, y: 30 }, { attachTolCm: 0.01 }).doc;
+		doc = addWall(doc, { x: 100, y: 0 }, { x: 100, y: 40 }, { attachTolCm: 0.01 }).doc;
+		const wId = Object.keys(doc.walls)[0];
+		const naId = Object.keys(doc.walls)[1];
+
+		const wallDir = (d: typeof doc, id: string) => {
+			const w = d.walls[id];
+			const a = d.joints[w.startJointId];
+			const b = d.joints[w.endJointId];
+			return { x: b.x - a.x, y: b.y - a.y };
+		};
+		const before = wallDir(doc, naId);
+
+		const thickened = setThickness(doc, wId, 20);
+		const after = wallDir(thickened, naId);
+		// N_A direction unchanged (angle preserved): still parallel to (1,1)
+		expect(after.x * before.y - after.y * before.x).toBeCloseTo(0, 6);
+		expect(after.x * before.x + after.y * before.y).toBeGreaterThan(0);
+
+		// N_A grew along its own axis by Δt/2 → inner length preserved
+		const naBefore = doc.walls[naId];
+		const naAfter = thickened.walls[naId];
+		const lenBefore = dist(doc.joints[naBefore.startJointId], doc.joints[naBefore.endJointId]);
+		const lenAfter = dist(
+			thickened.joints[naAfter.startJointId],
+			thickened.joints[naAfter.endJointId]
+		);
+		expect(lenAfter - lenBefore).toBeCloseTo(5, 6);
+		// inner before: len − 5 (W t10/2); inner after: len+5 − 10 (W t20/2) — equal
+		expect(lenBefore - 5).toBeCloseTo(lenAfter - 10, 6);
+
+		// N_B (vertical) keeps its direction too (it grows by Δt/2 along its axis)
+		const nbBefore = wallDir(doc, Object.keys(doc.walls)[2]);
+		const nbAfter = wallDir(thickened, Object.keys(doc.walls)[2]);
+		expect(nbAfter.x * nbBefore.y - nbAfter.y * nbBefore.x).toBeCloseTo(0, 6);
+		expect(nbAfter.x * nbBefore.x + nbAfter.y * nbBefore.y).toBeGreaterThan(0);
 	});
 
 	test('deleteWall removes wall and orphaned joints, keeps shared ones', () => {
