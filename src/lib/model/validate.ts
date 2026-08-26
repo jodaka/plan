@@ -1,5 +1,5 @@
-import type { PlanDoc, WallWindow } from '../types';
-import { MIN_WINDOW_LENGTH } from '../types';
+import type { DoorMode, PlanDoc, WallDoor, WallWindow } from '../types';
+import { DOOR_MODES, MIN_DOOR_LENGTH, MIN_WINDOW_LENGTH } from '../types';
 import { dist } from '../geometry';
 
 function isRecord(v: unknown): v is Record<string, unknown> {
@@ -12,9 +12,10 @@ function num(v: unknown): v is number {
 
 /**
  * Repairs/culls malformed plan data (wrong shape, non-finite coordinates,
- * dangling joint references, broken room objects, windows off their walls)
- * so corrupt input degrades to a partial plan instead of crashing the app.
- * Tolerates pre-roomObjects / pre-windows docs (fields normalized to {}).
+ * dangling joint references, broken room objects, openings off their walls,
+ * unknown door modes) so corrupt input degrades to a partial plan instead of
+ * crashing the app. Tolerates pre-roomObjects / pre-windows / pre-doors docs
+ * (fields normalized to {}).
  * Rooms themselves are derived and are never part of persisted data.
  */
 export function sanitizeDoc(data: unknown): PlanDoc | null {
@@ -64,7 +65,7 @@ export function sanitizeDoc(data: unknown): PlanDoc | null {
     }
   }
 
-  // windows: must reference a surviving wall and sit inside its span
+  // windows/doors: must reference a surviving wall and sit inside its span
   const windows: PlanDoc['windows'] = {};
   if (isRecord(data.windows)) {
     for (const [id, w] of Object.entries(data.windows)) {
@@ -81,5 +82,23 @@ export function sanitizeDoc(data: unknown): PlanDoc | null {
       windows[id] = win;
     }
   }
-  return { version: 1, joints, walls, roomObjects, windows };
+
+  const doors: PlanDoc['doors'] = {};
+  if (isRecord(data.doors)) {
+    for (const [id, d] of Object.entries(data.doors)) {
+      if (!isRecord(d) || typeof d.wallId !== 'string' || !num(d.offset) || !num(d.length)) continue;
+      const wall = walls[d.wallId];
+      if (!wall) continue;
+      const a = joints[wall.startJointId];
+      const b = joints[wall.endJointId];
+      if (!a || !b) continue;
+      const wallLen = dist(a, b);
+      const length = Math.max(MIN_DOOR_LENGTH, Math.min(wallLen, d.length));
+      const offset = Math.max(0, Math.min(Math.max(0, wallLen - length), d.offset));
+      const mode: DoorMode = DOOR_MODES.includes(d.mode as DoorMode) ? (d.mode as DoorMode) : 'none';
+      const door: WallDoor = { id, wallId: d.wallId, offset, length, mode };
+      doors[id] = door;
+    }
+  }
+  return { version: 1, joints, walls, roomObjects, windows, doors };
 }
