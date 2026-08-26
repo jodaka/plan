@@ -365,10 +365,11 @@ dropped onto a window's span. This is the one place where treating doors as "jus
 another window" changed existing behavior: walls now also can't shrink below their
 doors.
 
-**Mode semantics**: the four swinging modes are quadrants in the door's own frame —
-first letter picks the hinge jamb along the wall axis (`l` = start edge, `r` = end),
-second the cross-wall side (`t` = −normal, `b` = +normal). For a left-to-right
-horizontal wall that reads as top/bottom on screen, hence the names. Modes are relative
+**Mode semantics**: the four swinging modes are quadrants in the door's own frame,
+named as they read on a left-to-right horizontal wall — the FIRST letter picks the
+cross-wall side the leaf opens toward (`t` = −normal = up, `b` = +normal = down), the
+SECOND the hinge jamb along the wall axis (`l` = start edge, `r` = end edge). Modes are
+relative
 to the wall axis so they survive joint moves and wall reshaping. The inspector button
 cycles `tl → tr → br → bl → none` (clockwise rotation order, feels like spinning the
 swing) via `cycleDoorMode`; undo label "Change door swing".

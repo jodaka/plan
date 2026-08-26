@@ -38,12 +38,13 @@ const framePts = $derived(quad(p1, p2, h));
 const hitPts = $derived(quad(p1, p2, h + 6 / scale));
 
 // swing symbol: leaf hinged at one jamb standing perpendicular to the wall,
-// quarter-circle arc from its tip back to the other jamb
+// quarter-circle arc from its tip back to the other jamb.
+// Mode letters: 't'/'b' (first) = cross-wall side, 'l'/'r' (second) = hinge jamb
 const swing = $derived.by(() => {
   if (mode === 'none') return null;
-  const hinge = mode.startsWith('l') ? p1 : p2;
-  const other = mode.startsWith('l') ? p2 : p1;
-  const dir = mode.endsWith('t') ? mul(n, -1) : n;
+  const hinge = mode.endsWith('l') ? p1 : p2;
+  const other = mode.endsWith('l') ? p2 : p1;
+  const dir = mode.startsWith('t') ? mul(n, -1) : n;
   const tip = addPt(hinge, mul(dir, length));
   // SVG sweep flag: positive z cross product = increasing screen angle
   const v1 = sub(tip, hinge);

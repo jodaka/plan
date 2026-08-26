@@ -57,10 +57,10 @@ export interface WallWindow {
 
 /**
  * How a door swings. The four swinging modes are quadrants in the door's own
- * frame: the first letter picks the hinge jamb (l = start edge, r = end edge
- * along the wall axis start → end), the second the cross-wall side the leaf
- * opens toward (t = −normal, b = +normal; for a left-to-right horizontal wall
- * that is up/down on screen). 'none' renders no leaf/arc at all.
+ * frame, named as they read on a left-to-right horizontal wall: the FIRST
+ * letter picks the cross-wall side the leaf opens toward (t = −normal = up,
+ * b = +normal = down), the SECOND the hinge jamb along the wall axis
+ * (l = start edge, r = end edge). 'none' renders no leaf/arc at all.
  */
 export const DOOR_MODES = ['tl', 'tr', 'br', 'bl', 'none'] as const;
 export type DoorMode = (typeof DOOR_MODES)[number];
