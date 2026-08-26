@@ -1,5 +1,6 @@
 <script lang="ts">
 import AngleArcs from '$lib/components/AngleArcs.svelte';
+import DoorView from '$lib/components/DoorView.svelte';
 import RoomView from '$lib/components/RoomView.svelte';
 import WallDims from '$lib/components/WallDims.svelte';
 import WallView from '$lib/components/WallView.svelte';
@@ -27,10 +28,12 @@ import {
   findJointNear,
   MIN_WALL_LENGTH,
   moveJoint,
+  resizeDoor,
   resizeWindow,
+  setDoorOffset,
   setWindowOffset,
-  violatedWindowFloors,
-  wallWindowSpanCm,
+  violatedOpeningFloors,
+  wallOpeningSpanCm,
   wallsAtJoint,
   windowGapBounds,
 } from '$lib/model/ops';
@@ -40,12 +43,13 @@ import { ui } from '$lib/stores/ui.svelte';
 import { viewport } from '$lib/stores/viewport.svelte';
 import {
   DEFAULT_THICKNESS,
+  MIN_DOOR_LENGTH,
   MIN_WINDOW_LENGTH,
   type Joint,
   type JointId,
+  type WallDoor,
   type WallId,
   type WallWindow,
-  type WindowId,
 } from '$lib/types';
 
 const ATTACH_PX = 12;
@@ -69,14 +73,19 @@ type Drafts = Record<JointId, Pt>;
 let drafts = $state.raw<Drafts>({});
 let dragJointId = $state<JointId | null>(null);
 
-// window gestures: drafts drive rendering, winDrag is handler-only bookkeeping
-interface WinDraft {
+// opening gestures (windows + doors share the wall axis): drafts drive
+// rendering, openDrag is handler-only bookkeeping. Window and door ids are
+// globally unique, so one draft record serves both kinds.
+interface OpenDraft {
   offset: number;
   length: number;
 }
-let windowDrafts = $state.raw<Record<WindowId, WinDraft>>({});
-type WinDrag = { kind: 'slide'; id: WindowId; grab: number } | { kind: 'resize'; id: WindowId; side: 'start' | 'end' };
-let winDrag: WinDrag | null = null;
+let openDrafts = $state.raw<Record<string, OpenDraft>>({});
+type OpenTarget = 'window' | 'door';
+type OpenDrag =
+  | { kind: 'slide'; target: OpenTarget; id: string; grab: number }
+  | { kind: 'resize'; target: OpenTarget; id: string; side: 'start' | 'end' };
+let openDrag: OpenDrag | null = null;
 
 // gesture state NOT used by rendering
 let dragMoved = false;
@@ -180,7 +189,7 @@ const renderWindows = $derived.by<(WallWindow & { a: Pt; b: Pt; t: number })[]>(
     const a = renderJoints[w.startJointId];
     const b = renderJoints[w.endJointId];
     if (!a || !b) continue;
-    const d = windowDrafts[win.id];
+    const d = openDrafts[win.id];
     const length = Math.max(MIN_WINDOW_LENGTH, d?.length ?? win.length);
     const maxOff = Math.max(0, dist(a, b) - length);
     const offset = Math.max(0, Math.min(maxOff, d?.offset ?? win.offset));
@@ -189,7 +198,25 @@ const renderWindows = $derived.by<(WallWindow & { a: Pt; b: Pt; t: number })[]>(
   return out;
 });
 
-/** resize handles for the selected window, in the top layer (see §4 layering) */
+/** doors, same draft merge + re-clamp treatment as windows */
+const renderDoors = $derived.by<(WallDoor & { a: Pt; b: Pt; t: number })[]>(() => {
+  const out: (WallDoor & { a: Pt; b: Pt; t: number })[] = [];
+  for (const door of Object.values(plan.doc.doors)) {
+    const w = plan.doc.walls[door.wallId];
+    if (!w) continue;
+    const a = renderJoints[w.startJointId];
+    const b = renderJoints[w.endJointId];
+    if (!a || !b) continue;
+    const d = openDrafts[door.id];
+    const length = Math.max(MIN_DOOR_LENGTH, d?.length ?? door.length);
+    const maxOff = Math.max(0, dist(a, b) - length);
+    const offset = Math.max(0, Math.min(maxOff, d?.offset ?? door.offset));
+    out.push({ ...door, offset, length, a, b, t: w.thickness });
+  }
+  return out;
+});
+
+/** resize handles for the selected opening(s), in the top layer (see §4 layering) */
 const selectedWindowHandles = $derived.by(() => {
   const sel = ui.selectedWindowId;
   if (!sel || !plan.doc.windows[sel]) return [];
@@ -239,14 +266,26 @@ const selectedWindowHints = $derived.by(() => {
   return { win, bounds, flip };
 });
 
+const selectedDoorHandles = $derived.by(() => {
+  const sel = ui.selectedDoorId;
+  if (!sel || !plan.doc.doors[sel]) return [];
+  const door = renderDoors.find((d) => d.id === sel);
+  if (!door) return [];
+  const u = unit(sub(door.b, door.a));
+  return [
+    { doorId: sel, side: 'start' as const, p: addPt(door.a, mul(u, door.offset)) },
+    { doorId: sel, side: 'end' as const, p: addPt(door.a, mul(u, door.offset + door.length)) },
+  ];
+});
+
 /** walls rendered with full selection treatment: the selected wall — or,
  * while a joint is being dragged — every wall attached to that joint, so
  * all affected lengths/angles annotate automatically */
 const highlightIds = $derived.by<WallId[]>(() => {
   if (dragJointId) return wallsAtJoint(plan.doc, dragJointId).map((w) => w.id);
-  // a selected window suppresses its wall's highlight — the blue overlay and
-  // dimension lines would visually fight the window's own editing UI
-  return ui.selectedWallId && !ui.selectedWindowId ? [ui.selectedWallId] : [];
+  // a selected opening suppresses its wall's highlight — the blue overlay and
+  // dimension lines would visually fight the opening's own editing UI
+  return ui.selectedWallId && !ui.selectedWindowId && !ui.selectedDoorId ? [ui.selectedWallId] : [];
 });
 
 // handles live in a top-level layer so wall hit-lines can never cover them
@@ -483,14 +522,14 @@ function localPt(e: PointerEvent): Pt {
   return { x: e.clientX - r.left, y: e.clientY - r.top };
 }
 
-// --- window gestures ---------------------------------------------------------
+// --- opening gestures (windows + doors) --------------------------------------
 
-/** draft values for a window, falling back to its committed doc state */
-function windowBase(id: WindowId): WinDraft | null {
-  return (
-    windowDrafts[id] ??
-    (plan.doc.windows[id] ? { offset: plan.doc.windows[id].offset, length: plan.doc.windows[id].length } : null)
-  );
+const minOpeningLength = (target: OpenTarget) => (target === 'window' ? MIN_WINDOW_LENGTH : MIN_DOOR_LENGTH);
+
+/** draft values for an opening, falling back to its committed doc state */
+function openBase(target: OpenTarget, id: string): OpenDraft | null {
+  const rec = target === 'window' ? plan.doc.windows[id] : plan.doc.doors[id];
+  return openDrafts[id] ?? (rec ? { offset: rec.offset, length: rec.length } : null);
 }
 
 /** projection of a world point onto the wall axis: cm from the start joint */
@@ -504,71 +543,86 @@ function projOnWall(wallId: WallId, world: Pt): { s: number; len: number } | nul
   return { s: (world.x - a.x) * u.x + (world.y - a.y) * u.y, len: dist(a, b) };
 }
 
-function startWindowSlide(id: WindowId, world: Pt) {
-  const win = plan.doc.windows[id];
-  const base = windowBase(id);
-  const proj = win && projOnWall(win.wallId, world);
-  if (!win || !base || !proj) return;
-  ui.select(win.wallId); // clears any window selection…
-  ui.selectWindow(id); // …then selects this one; wall stays as context
+function wallOf(target: OpenTarget, id: string): WallId | null {
+  const rec = target === 'window' ? plan.doc.windows[id] : plan.doc.doors[id];
+  return rec?.wallId ?? null;
+}
+
+function startOpenSlide(target: OpenTarget, id: string, world: Pt) {
+  const wallId = wallOf(target, id);
+  const base = openBase(target, id);
+  const proj = wallId && projOnWall(wallId, world);
+  if (!wallId || !base || !proj) return;
+  ui.select(wallId); // clears any opening selection…
+  if (target === 'window')
+    ui.selectWindow(id); // …then selects this one; wall stays as context
+  else ui.selectDoor(id);
   // snap the grab point too, so offset = snap(s) − grab stays on-grid
-  winDrag = { kind: 'slide', id, grab: (ui.snapEnabled ? snap(proj.s) : proj.s) - base.offset };
+  openDrag = { kind: 'slide', target, id, grab: (ui.snapEnabled ? snap(proj.s) : proj.s) - base.offset };
 }
 
-function startWindowResize(id: WindowId, side: 'start' | 'end', world: Pt) {
-  const win = plan.doc.windows[id];
-  if (!win || !windowBase(id) || !projOnWall(win.wallId, world)) return;
-  ui.select(win.wallId);
-  ui.selectWindow(id);
-  winDrag = { kind: 'resize', id, side };
+function startOpenResize(target: OpenTarget, id: string, side: 'start' | 'end', world: Pt) {
+  const wallId = wallOf(target, id);
+  if (!wallId || !openBase(target, id) || !projOnWall(wallId, world)) return;
+  ui.select(wallId);
+  if (target === 'window') ui.selectWindow(id);
+  else ui.selectDoor(id);
+  openDrag = { kind: 'resize', target, id, side };
 }
 
-function applyWindowDrag(world: Pt) {
-  if (!winDrag) return;
-  const win = plan.doc.windows[winDrag.id];
-  const base = windowBase(winDrag.id);
-  const proj = win && projOnWall(win.wallId, world);
-  if (!win || !base || !proj) {
-    cancelWindowDrag();
+function applyOpenDrag(world: Pt) {
+  if (!openDrag) return;
+  const drag = openDrag;
+  const base = openBase(drag.target, drag.id);
+  const wallId = wallOf(drag.target, drag.id);
+  const proj = wallId && projOnWall(wallId, world);
+  if (!base || !proj) {
+    cancelOpenDrag();
     return;
   }
+  const minLen = minOpeningLength(drag.target);
   const q = (v: number) => (ui.snapEnabled ? snap(v) : v);
   const s = q(proj.s);
   let { offset, length } = base;
-  if (winDrag.kind === 'slide') {
-    offset = Math.max(0, Math.min(Math.max(0, proj.len - length), s - winDrag.grab));
-  } else if (winDrag.side === 'start') {
+  if (drag.kind === 'slide') {
+    offset = Math.max(0, Math.min(Math.max(0, proj.len - length), s - drag.grab));
+  } else if (drag.side === 'start') {
     const end = offset + length;
-    offset = Math.max(0, Math.min(end - MIN_WINDOW_LENGTH, s));
+    offset = Math.max(0, Math.min(end - minLen, s));
     length = end - offset;
   } else {
-    const end = Math.max(offset + MIN_WINDOW_LENGTH, Math.min(proj.len, s));
+    const end = Math.max(offset + minLen, Math.min(proj.len, s));
     length = end - offset;
   }
   // quantize BOTH edges, then re-clamp — a fractional base (legacy doc) or a
-  // quantized shift must never push the window past the wall end
+  // quantized shift must never push the opening past the wall end
   offset = q(offset);
   length = q(length);
   offset = Math.max(0, Math.min(Math.max(0, proj.len - length), offset));
-  windowDrafts = { ...windowDrafts, [winDrag.id]: { offset, length } };
+  openDrafts = { ...openDrafts, [drag.id]: { offset, length } };
 }
 
-function commitWindowDrag() {
-  const d = winDrag && windowDrafts[winDrag.id];
-  const exists = winDrag && plan.doc.windows[winDrag.id];
-  if (d && exists && winDrag) {
-    if (winDrag.kind === 'slide') {
-      plan.commit('Move window', setWindowOffset(plan.doc, winDrag.id, d.offset));
+function commitOpenDrag() {
+  const d = openDrag && openDrafts[openDrag.id];
+  if (d && openDrag && wallOf(openDrag.target, openDrag.id)) {
+    if (openDrag.target === 'window') {
+      if (openDrag.kind === 'slide') {
+        plan.commit('Move window', setWindowOffset(plan.doc, openDrag.id, d.offset));
+      } else {
+        plan.commit('Resize window', resizeWindow(plan.doc, openDrag.id, d.offset, d.length));
+      }
+    } else if (openDrag.kind === 'slide') {
+      plan.commit('Move door', setDoorOffset(plan.doc, openDrag.id, d.offset));
     } else {
-      plan.commit('Resize window', resizeWindow(plan.doc, winDrag.id, d.offset, d.length));
+      plan.commit('Resize door', resizeDoor(plan.doc, openDrag.id, d.offset, d.length));
     }
   }
-  cancelWindowDrag();
+  cancelOpenDrag();
 }
 
-function cancelWindowDrag() {
-  winDrag = null;
-  windowDrafts = {};
+function cancelOpenDrag() {
+  openDrag = null;
+  openDrafts = {};
 }
 
 function onPointerDown(e: PointerEvent) {
@@ -596,6 +650,11 @@ function onPointerDown(e: PointerEvent) {
     winId && target.closest('[data-window-handle]')?.getAttribute('data-window-handle') === 'end'
       ? ('end' as const)
       : ('start' as const);
+  const doorId = target.closest('[data-door-id]')?.getAttribute('data-door-id') ?? null;
+  const doorHandleSide =
+    doorId && target.closest('[data-door-handle]')?.getAttribute('data-door-handle') === 'end'
+      ? ('end' as const)
+      : ('start' as const);
 
   if (ui.tool === 'draw') {
     const res = resolveDrawPoint(world);
@@ -619,11 +678,17 @@ function onPointerDown(e: PointerEvent) {
     dragMoved = false;
     return;
   }
+  if (doorId && plan.doc.doors[doorId]) {
+    // doors beat windows and wall hit-lines: they render above both
+    if (target.closest('[data-door-handle]')) startOpenResize('door', doorId, doorHandleSide, world);
+    else startOpenSlide('door', doorId, world);
+    return;
+  }
   if (winId && plan.doc.windows[winId]) {
     // windows beat wall hit-lines: they render above the wall body
     const side = winHandleSide;
-    if (target.closest('[data-window-handle]')) startWindowResize(winId, side, world);
-    else startWindowSlide(winId, world);
+    if (target.closest('[data-window-handle]')) startOpenResize('window', winId, side, world);
+    else startOpenSlide('window', winId, world);
     return;
   }
   if (wallHit && plan.doc.walls[wallHit]) {
@@ -645,8 +710,8 @@ function onPointerMove(e: PointerEvent) {
     panLast = lp;
     return;
   }
-  if (winDrag) {
-    applyWindowDrag(cursorWorld);
+  if (openDrag) {
+    applyOpenDrag(cursorWorld);
     return;
   }
   if (dragJointId) {
@@ -664,20 +729,20 @@ function onPointerUp(e: PointerEvent) {
   panning = false;
   panLast = null;
 
-  if (winDrag) {
-    commitWindowDrag();
+  if (openDrag) {
+    commitOpenDrag();
     return;
   }
   if (dragJointId) {
     const p = drafts[dragJointId];
     if (dragMoved && p) {
       const candidate = moveJoint(plan.doc, dragJointId, p);
-      const bad = violatedWindowFloors(candidate);
+      const bad = violatedOpeningFloors(candidate);
       if (bad.length > 0) {
-        // shrinking a wall below its windows is rejected — windows keep their lengths
+        // shrinking a wall below its openings is rejected — they keep their lengths
         ui.showError(
-          `Move rejected: a wall would get shorter than its windows (needs at least ${fmtCm(
-            Math.max(...bad.map((id) => wallWindowSpanCm(plan.doc, id))),
+          `Move rejected: a wall would get shorter than its windows/doors (needs at least ${fmtCm(
+            Math.max(...bad.map((id) => wallOpeningSpanCm(plan.doc, id))),
           )} cm).`,
         );
       } else {
@@ -700,7 +765,7 @@ function onKeyDown(e: KeyboardEvent) {
     spaceHeld = true;
   } else if (e.key === 'Escape') {
     endDraw();
-    cancelWindowDrag();
+    cancelOpenDrag();
   }
 }
 
@@ -776,6 +841,21 @@ const cursorClass = $derived.by(() => {
           selected={wv.id === ui.selectedWindowId} />
       {/each}
 
+      <!-- doors likewise; painted above windows so their hit areas win where
+           openings would overlap -->
+      {#each renderDoors as dv (dv.id)}
+        <DoorView
+          id={dv.id}
+          a={dv.a}
+          b={dv.b}
+          thickness={dv.t}
+          offset={dv.offset}
+          length={dv.length}
+          mode={dv.mode}
+          scale={viewport.scale}
+          selected={dv.id === ui.selectedDoorId} />
+      {/each}
+
       <!-- joint dots: make connection points visible for closing chains -->
       {#each Object.values(renderJoints) as j (j.id)}
         <circle class="joint-dot" cx={j.x} cy={j.y} r={3 / viewport.scale} />
@@ -818,12 +898,22 @@ const cursorClass = $derived.by(() => {
           stroke-width={2 / viewport.scale} />
       {/each}
 
-      <!-- window resize handles: topmost so wall handles can't steal their clicks -->
+      <!-- opening resize handles: topmost so wall handles can't steal their clicks -->
       {#each selectedWindowHandles as hp (hp.side)}
         <circle
           class="handle win-handle"
           data-window-id={hp.winId}
           data-window-handle={hp.side}
+          cx={hp.p.x}
+          cy={hp.p.y}
+          r={6 / viewport.scale}
+          stroke-width={2 / viewport.scale} />
+      {/each}
+      {#each selectedDoorHandles as hp (hp.side)}
+        <circle
+          class="handle door-handle"
+          data-door-id={hp.doorId}
+          data-door-handle={hp.side}
           cx={hp.p.x}
           cy={hp.p.y}
           r={6 / viewport.scale}

@@ -2,6 +2,7 @@ export type JointId = string;
 export type WallId = string;
 export type RoomObjectId = string;
 export type WindowId = string;
+export type DoorId = string;
 
 export interface Joint {
   id: JointId;
@@ -54,6 +55,20 @@ export interface WallWindow {
   length: number;
 }
 
+/**
+ * How a door swings. The four swinging modes are quadrants in the door's own
+ * frame, named as they read on a left-to-right horizontal wall: the FIRST
+ * letter picks the cross-wall side the leaf opens toward (t = −normal = up,
+ * b = +normal = down), the SECOND the hinge jamb along the wall axis
+ * (l = start edge, r = end edge). 'none' renders no leaf/arc at all.
+ */
+export const DOOR_MODES = ['tl', 'tr', 'br', 'bl', 'none'] as const;
+export type DoorMode = (typeof DOOR_MODES)[number];
+
+export interface WallDoor extends WallWindow {
+  mode: DoorMode;
+}
+
 export interface PlanDoc {
   version: 1;
   joints: Record<JointId, Joint>;
@@ -62,6 +77,8 @@ export interface PlanDoc {
   roomObjects: Record<RoomObjectId, RoomObject>;
   /** openings in walls; die with their wall */
   windows: Record<WindowId, WallWindow>;
+  /** openings in walls; die with their wall */
+  doors: Record<DoorId, WallDoor>;
 }
 
 export const DEFAULT_THICKNESS = 10;
@@ -70,3 +87,6 @@ export const MAX_THICKNESS = 100;
 
 export const DEFAULT_WINDOW_LENGTH = 100;
 export const MIN_WINDOW_LENGTH = 10;
+
+export const DEFAULT_DOOR_LENGTH = 80;
+export const MIN_DOOR_LENGTH = 30;

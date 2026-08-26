@@ -274,7 +274,7 @@ needs a number, not a string.
 ## 14. Deliberately not done (yet)
 
 - Grid visibility defaults to OFF (spec: invisible grid defines snapping; toggle exists).
-- No marquee/multi-select, no wall splitting, no doors. Windows exist since v0.2.0 (§16).
+- No marquee/multi-select, no wall splitting. Doors exist since v0.3.0 (§17).
 - Inspector length edits commit per `change` event (spinner clicks can create several
   history entries; capped by the 500-entry limit).
 - Extension geometry assumes (near-)perpendicular corners; non-right angles use the same
@@ -356,3 +356,47 @@ side (same normal rule as §5).
 **Persistence**: `PlanDoc.windows` is additive — version stays 1; `sanitizeDoc` culls
 windows with unknown walls and clamps survivors back into their wall span, so old saves
 (normalizing missing field → `{}`) and foreign files degrade safely.
+
+## 17. Doors are windows with a swing mode (and share their axis)
+
+**Decision**: `WallDoor extends WallWindow` with a `mode: DoorMode` —
+`'tl' | 'tr' | 'br' | 'bl' | 'none'` in `doc.doors`. Everything windows do, doors do
+too: offset-from-start anchoring, largest-gap placement (`addDoor`, default 80 cm,
+min 30 cm), slide by body drag, resize via two round handles, thickness = host wall's,
+death with their wall. The gesture machinery in Canvas was generalized to both kinds
+(`openDrafts` keyed by entity id — UUIDs are globally unique — plus an
+`OpenTarget = 'window' | 'door'` tag on the drag state); ops got shared helpers
+(`placeOpening`, `largestGap`, `clampedPlacement`).
+
+**Why doors count toward the window floor**: openings live on one shared wall axis, so
+"wall length ≥ Σ opening lengths" only makes sense across BOTH kinds.
+`violatedOpeningFloors` (renamed from `violatedWindowFloors`) and
+`wallOpeningSpanCm` sum them; gap placement considers both too, so a door can never be
+dropped onto a window's span. This is the one place where treating doors as "just
+another window" changed existing behavior: walls now also can't shrink below their
+doors.
+
+**Mode semantics**: the four swinging modes are quadrants in the door's own frame,
+named as they read on a left-to-right horizontal wall — the FIRST letter picks the
+cross-wall side the leaf opens toward (`t` = −normal = up, `b` = +normal = down), the
+SECOND the hinge jamb along the wall axis (`l` = start edge, `r` = end edge). Modes are
+relative
+to the wall axis so they survive joint moves and wall reshaping. The inspector button
+cycles `tl → tr → br → bl → none` (clockwise rotation order, feels like spinning the
+swing) via `cycleDoorMode`; undo label "Change door swing".
+
+**Rendering** (`DoorView.svelte`): warm palette (#a16207/#b45309/#d97706) vs the
+window's blue glass — the classic plan symbol: jamb-frame quad, leaf line standing
+perpendicular to the wall at the hinge jamb, dashed quarter-circle arc back to the
+other jamb, tiny hinge dot. `'none'` renders just the threshold quad. Arc sweep flag:
+positive z of `(tip−hinge) × (other−hinge)` ⇒ SVG sweep 1 (y-down screen space:
+positive cross = increasing screen angle). Selection outline is amber, not blue.
+
+**Layering**: doors paint after ALL walls AND above windows (§4 order updated), so
+their hit areas win where openings would ever overlap; door handles join window
+handles in the topmost layer (`data-door-id` / `data-door-handle`). Pointerdown checks
+doors before windows for the same reason.
+
+**Persistence**: same rules as windows (§16) — `PlanDoc.doors` is additive, version
+stays 1; `sanitizeDoc` culls doors with unknown walls, clamps spans, and normalizes
+unknown modes to `'none'`; docs without a `doors` field normalize to `{}`.

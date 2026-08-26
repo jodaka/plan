@@ -57,9 +57,16 @@ bun test           # unit tests (bun:test, tests/ directory)
   their body; a selected window shows amber gap hints (distance to the nearest
   other-window edge on each side, or to the wall ends when it has no neighbors);
   thickness always equals the host wall's; deleting a wall deletes its
-  windows; wall resizes keep window offsets while they fit (else clamp flush) and are
-  REJECTED with an error toast when a wall would get shorter than its total window span
-- Room-bound entities: `doc.roomObjects` (furniture/doors/…, keyed by the room's stable
+  windows; wall resizes keep opening offsets while they fit (else clamp flush) and are
+  REJECTED with an error toast when a wall would get shorter than its total opening span
+- Doors: like windows ("Add door" on a selected wall — default 80 cm, min 30 cm) but
+  rendered with the classic plan symbol: jamb frame + leaf standing perpendicular to the
+  wall + dashed quarter-circle swing arc; a selected door's inspector button cycles its
+  swing mode through top-left → top-right → bottom-right → bottom-left → no swing
+  (modes are quadrants relative to the wall axis start→end); doors share the wall axis
+  with windows (gaps/floors count both), delete with their wall, show the same amber
+  gap hints as windows when selected, and persist as `doc.doors`
+- Room-bound entities: `doc.roomObjects` (furniture/…, keyed by the room's stable
   wall-set key) — deleting a wall that belongs to a room asks for confirmation first
   (it would destroy the room and orphan its objects; objects are kept, never culled)
 - Undo/redo (Ctrl/Cmd+Z, Ctrl+Shift+Z / Ctrl+Y, toolbar buttons) with labeled entries
@@ -92,6 +99,7 @@ src/lib/
     Canvas.svelte          # svg, pointer/wheel/keyboard gestures, drafts, top layers
     WallView.svelte        # wall body + invisible fat hit-line (corner extension math)
     WindowView.svelte      # window frame + glass on its wall + invisible hit area
+    DoorView.svelte        # door jamb frame + swing leaf/arc + invisible hit area
     RoomView.svelte        # room polygon + m² label at centroid (pointer-events: none)
     WallDims.svelte        # outer/inner dimension lines for highlighted walls
     AngleArcs.svelte       # angle arcs at joints of highlighted walls
@@ -113,9 +121,9 @@ tests/model.test.ts        # bun:test unit tests for geometry + ops
    components/routes use `$lib/...`. Modules imported by tests must not depend on
    `$app/*` (see `ai/decisions.md` §12).
 5. SVG layer order in Canvas is load-bearing (see `ai/decisions.md` §4): grid → rooms →
-   walls → windows → joint dots → selection overlay → wall handles → window handles →
-   dimensions. Hit-testing relies on `data-wall-id` / `data-joint-id` /
-   `data-window-id` attributes and paint order.
+   walls → windows → doors → joint dots → selection overlay → wall handles → window
+   handles → door handles → dimensions. Hit-testing relies on `data-wall-id` /
+   `data-joint-id` / `data-window-id` / `data-door-id` attributes and paint order.
 6. Walls render as mitered polygons (`wallCorners`): connected ends are cut along the
    miter line shared with the thickest neighbor at that joint; free ends stay flush.
    `outer = centerline + extStart + extEnd`, `inner = centerline − extStart − extEnd`.

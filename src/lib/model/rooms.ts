@@ -95,7 +95,10 @@ export function findRooms(joints: PlanDoc['joints'], walls: PlanDoc['walls']): R
 
       if (closed && loop.length >= 3) {
         // vertex i ends loop[i]; the edge STARTING at vertex i is loop[i+1]
-        const pts: Pt[] = loop.map((e) => ({ x: joints[e.to]!.x, y: joints[e.to]!.y }));
+        const pts: Pt[] = loop.map((e) => {
+          const j = joints[e.to];
+          return { x: j?.x ?? 0, y: j?.y ?? 0 };
+        });
         const edgeT = loop.map((_, i) => walls[loop[(i + 1) % loop.length].wallId]?.thickness ?? 0);
         const areaCm2 = shoelaceArea(pts);
         if (areaCm2 > MIN_AREA_CM2) {
