@@ -1,28 +1,37 @@
 import { dist, sub, unit, type Pt } from '../geometry';
 import {
   DEFAULT_THICKNESS,
+  DEFAULT_WINDOW_LENGTH,
   MAX_THICKNESS,
   MIN_THICKNESS,
+  MIN_WINDOW_LENGTH,
   type Joint,
   type JointId,
   type PlanDoc,
   type RoomObject,
   type Wall,
   type WallId,
+  type WallWindow,
+  type WindowId,
 } from '../types';
 
 export const MIN_WALL_LENGTH = 1; // cm
 
 export function emptyDoc(): PlanDoc {
-  return { version: 1, joints: {}, walls: {}, roomObjects: {} };
+  return { version: 1, joints: {}, walls: {}, roomObjects: {}, windows: {} };
 }
 
 function newId(): string {
   return crypto.randomUUID();
 }
 
-function copyDoc(joints: PlanDoc['joints'], walls: PlanDoc['walls'], roomObjects: PlanDoc['roomObjects']): PlanDoc {
-  return { version: 1, joints, walls, roomObjects };
+function copyDoc(
+  joints: PlanDoc['joints'],
+  walls: PlanDoc['walls'],
+  roomObjects: PlanDoc['roomObjects'],
+  windows: PlanDoc['windows'],
+): PlanDoc {
+  return { version: 1, joints, walls, roomObjects, windows };
 }
 
 export function findJointNear(doc: PlanDoc, p: Pt, tolCm: number): Joint | null {
@@ -82,14 +91,21 @@ export function addWall(
     thickness,
   };
   const walls = { ...doc.walls, [wall.id]: wall };
-  return { doc: copyDoc(joints, walls, doc.roomObjects), wallId: wall.id };
+  return { doc: copyDoc(joints, walls, doc.roomObjects, doc.windows), wallId: wall.id };
 }
 
 export function moveJoint(doc: PlanDoc, jointId: JointId, p: Pt): PlanDoc {
   const j = doc.joints[jointId];
   if (!j || (j.x === p.x && j.y === p.y)) return doc;
   const joints = { ...doc.joints, [jointId]: { ...j, x: p.x, y: p.y } };
-  return copyDoc(joints, doc.walls, doc.roomObjects);
+  // attached walls changed length — keep their windows inside (windows keep
+  // their offset while it fits, else clamp flush to the nearest wall end)
+  let windows = doc.windows;
+  for (const w of Object.values(doc.walls)) {
+    if (w.startJointId !== jointId && w.endJointId !== jointId) continue;
+    windows = clampWallWindows(windows, w, joints);
+  }
+  return copyDoc(joints, doc.walls, doc.roomObjects, windows);
 }
 
 export function clampThickness(t: number): number {
@@ -165,7 +181,7 @@ export function setThickness(doc: PlanDoc, wallId: WallId, thickness: number): P
   }
 
   const walls = { ...next.walls, [wallId]: { ...next.walls[wallId], thickness: t } };
-  return copyDoc(next.joints, walls, next.roomObjects);
+  return copyDoc(next.joints, walls, next.roomObjects, next.windows);
 }
 
 /** Sets wall length by moving its end joint along the current direction. */
@@ -197,7 +213,8 @@ export function setInnerLength(doc: PlanDoc, wallId: WallId, innerCm: number): P
   return setLength(doc, wallId, innerCm + extS + extE);
 }
 
-/** Deletes a wall and prunes joints left orphaned by the deletion.
+/** Deletes a wall, all windows mounted in it, and prunes joints left
+ * orphaned by the deletion.
  * Room-bound entities are deliberately KEPT: destroying their room orphans
  * them (the delete flow warns before that happens), it never silently
  * deletes user data. */
@@ -215,7 +232,13 @@ export function deleteWall(doc: PlanDoc, wallId: WallId): PlanDoc {
   for (const id of [w.startJointId, w.endJointId]) {
     if (!used.has(id)) delete joints[id];
   }
-  return copyDoc(joints, walls, doc.roomObjects);
+  let windows = doc.windows;
+  for (const win of Object.values(doc.windows)) {
+    if (win.wallId !== wallId) continue;
+    if (windows === doc.windows) windows = { ...doc.windows };
+    delete windows[win.id];
+  }
+  return copyDoc(joints, walls, doc.roomObjects, windows);
 }
 
 /** Adds an entity bound to the room with the given key. Returns null when the position is not finite. */
@@ -230,7 +253,7 @@ export function addRoomObject(
   }
   const object: RoomObject = { id: newId(), roomId, kind, x: pos.x, y: pos.y };
   const roomObjects = { ...doc.roomObjects, [object.id]: object };
-  return { doc: copyDoc(doc.joints, doc.walls, roomObjects), object };
+  return { doc: copyDoc(doc.joints, doc.walls, roomObjects, doc.windows), object };
 }
 
 /** Removes a room-bound entity; no-op when the id is unknown. */
@@ -238,7 +261,167 @@ export function removeRoomObject(doc: PlanDoc, objectId: string): PlanDoc {
   if (!doc.roomObjects[objectId]) return doc;
   const roomObjects = { ...doc.roomObjects };
   delete roomObjects[objectId];
-  return copyDoc(doc.joints, doc.walls, roomObjects);
+  return copyDoc(doc.joints, doc.walls, roomObjects, doc.windows);
+}
+
+// --- windows ----------------------------------------------------------------
+
+/** Centerline length of a wall, cm; 0 for unknown walls/joints. */
+function wallCenterLength(doc: PlanDoc, wallId: WallId): number {
+  const w = doc.walls[wallId];
+  const a = w && doc.joints[w.startJointId];
+  const b = w && doc.joints[w.endJointId];
+  return a && b ? dist(a, b) : 0;
+}
+
+/**
+ * Clamps every window of one wall into the span implied by `joints`: offsets
+ * stay put while they fit, otherwise pull flush to the nearest wall end.
+ * Returns the original record when nothing moves (structural sharing).
+ */
+function clampWallWindows(windows: PlanDoc['windows'], wall: Wall, joints: PlanDoc['joints']): PlanDoc['windows'] {
+  const a = joints[wall.startJointId];
+  const b = joints[wall.endJointId];
+  if (!a || !b) return windows;
+  const len = dist(a, b);
+  let out = windows;
+  for (const win of Object.values(windows)) {
+    if (win.wallId !== wall.id) continue;
+    const maxOff = Math.max(0, len - win.length);
+    const offset = Math.max(0, Math.min(maxOff, win.offset));
+    if (offset === win.offset) continue;
+    if (out === windows) out = { ...windows };
+    out[win.id] = { ...win, offset };
+  }
+  return out;
+}
+
+/** All windows mounted in a wall, ordered along it (start → end). */
+export function windowsOnWall(doc: PlanDoc, wallId: WallId): WallWindow[] {
+  return Object.values(doc.windows)
+    .filter((w) => w.wallId === wallId)
+    .sort((a, b) => a.offset - b.offset);
+}
+
+/** Total window length mounted in a wall, cm — its hard minimum centerline length. */
+export function wallWindowSpanCm(doc: PlanDoc, wallId: WallId): number {
+  let sum = 0;
+  for (const w of Object.values(doc.windows)) {
+    if (w.wallId === wallId) sum += w.length;
+  }
+  return sum;
+}
+
+/**
+ * Walls whose centerline length is below their total window length — i.e.
+ * mutations that shrank a wall past its window floor and must NOT be
+ * committed (the UI surfaces an error instead).
+ */
+export function violatedWindowFloors(doc: PlanDoc): WallId[] {
+  const bad: WallId[] = [];
+  for (const w of Object.values(doc.walls)) {
+    const span = wallWindowSpanCm(doc, w.id);
+    if (span === 0) continue;
+    const a = doc.joints[w.startJointId];
+    const b = doc.joints[w.endJointId];
+    if (a && b && dist(a, b) < span - 1e-6) bad.push(w.id);
+  }
+  return bad;
+}
+
+export interface AddWindowResult {
+  doc: PlanDoc;
+  window: WallWindow | null;
+}
+
+/**
+ * Adds a default-length window to the wall's largest free gap between
+ * existing windows (the whole wall when none), centered in that gap and
+ * shrunk to it when needed. Returns null when no gap fits MIN_WINDOW_LENGTH.
+ */
+export function addWindow(doc: PlanDoc, wallId: WallId, opts?: { length?: number }): AddWindowResult {
+  if (!doc.walls[wallId]) return { doc, window: null };
+  const len = wallCenterLength(doc, wallId);
+  if (len <= 0) return { doc, window: null };
+
+  let prevEnd = 0;
+  let bestStart = 0;
+  let bestSize = -1;
+  for (const w of windowsOnWall(doc, wallId)) {
+    const size = w.offset - prevEnd;
+    if (size > bestSize) {
+      bestSize = size;
+      bestStart = prevEnd;
+    }
+    prevEnd = w.offset + w.length;
+  }
+  const tail = len - prevEnd;
+  if (tail > bestSize) {
+    bestSize = tail;
+    bestStart = prevEnd;
+  }
+  if (bestSize < MIN_WINDOW_LENGTH) return { doc, window: null };
+
+  const length = Math.max(MIN_WINDOW_LENGTH, Math.min(opts?.length ?? DEFAULT_WINDOW_LENGTH, bestSize));
+  const win: WallWindow = {
+    id: newId(),
+    wallId,
+    offset: bestStart + (bestSize - length) / 2,
+    length,
+  };
+  const windows = { ...doc.windows, [win.id]: win };
+  return { doc: copyDoc(doc.joints, doc.walls, doc.roomObjects, windows), window: win };
+}
+
+/** Removes a window; no-op when the id is unknown. */
+export function deleteWindow(doc: PlanDoc, windowId: WindowId): PlanDoc {
+  if (!doc.windows[windowId]) return doc;
+  const windows = { ...doc.windows };
+  delete windows[windowId];
+  return copyDoc(doc.joints, doc.walls, doc.roomObjects, windows);
+}
+
+/**
+ * Sets a window's length around its center (both edges move apart/together),
+ * clamped to [MIN_WINDOW_LENGTH, wall length]; the offset re-clamps so the
+ * window stays inside its wall.
+ */
+export function setWindowLength(doc: PlanDoc, windowId: WindowId, lengthCm: number): PlanDoc {
+  const win = doc.windows[windowId];
+  if (!win || !Number.isFinite(lengthCm)) return doc;
+  const wallLen = wallCenterLength(doc, win.wallId);
+  if (wallLen <= 0) return doc;
+  const length = Math.max(MIN_WINDOW_LENGTH, Math.min(wallLen, lengthCm));
+  const maxOff = Math.max(0, wallLen - length);
+  const offset = Math.max(0, Math.min(maxOff, win.offset + (win.length - length) / 2));
+  if (length === win.length && offset === win.offset) return doc;
+  const windows = { ...doc.windows, [windowId]: { ...win, offset, length } };
+  return copyDoc(doc.joints, doc.walls, doc.roomObjects, windows);
+}
+
+/** Slides a window along its wall, keeping it inside; no-op when unknown. */
+export function setWindowOffset(doc: PlanDoc, windowId: WindowId, offsetCm: number): PlanDoc {
+  const win = doc.windows[windowId];
+  if (!win || !Number.isFinite(offsetCm)) return doc;
+  const wallLen = wallCenterLength(doc, win.wallId);
+  if (wallLen <= 0) return doc;
+  const offset = Math.max(0, Math.min(Math.max(0, wallLen - win.length), offsetCm));
+  if (offset === win.offset) return doc;
+  const windows = { ...doc.windows, [windowId]: { ...win, offset } };
+  return copyDoc(doc.joints, doc.walls, doc.roomObjects, windows);
+}
+
+/** Sets both window edges at once (drag commit); values clamp back into the wall. */
+export function resizeWindow(doc: PlanDoc, windowId: WindowId, offset: number, length: number): PlanDoc {
+  const win = doc.windows[windowId];
+  if (!win || !Number.isFinite(offset) || !Number.isFinite(length)) return doc;
+  const wallLen = wallCenterLength(doc, win.wallId);
+  if (wallLen <= 0) return doc;
+  const len = Math.max(MIN_WINDOW_LENGTH, Math.min(wallLen, length));
+  const off = Math.max(0, Math.min(Math.max(0, wallLen - len), offset));
+  if (len === win.length && off === win.offset) return doc;
+  const windows = { ...doc.windows, [windowId]: { ...win, offset: off, length: len } };
+  return copyDoc(doc.joints, doc.walls, doc.roomObjects, windows);
 }
 
 export interface BBox {

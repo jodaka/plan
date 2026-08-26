@@ -3,6 +3,7 @@ import AngleArcs from '$lib/components/AngleArcs.svelte';
 import RoomView from '$lib/components/RoomView.svelte';
 import WallDims from '$lib/components/WallDims.svelte';
 import WallView from '$lib/components/WallView.svelte';
+import WindowView from '$lib/components/WindowView.svelte';
 import {
   addPt,
   angleBetweenDeg,
@@ -11,6 +12,7 @@ import {
   fmtCm,
   mul,
   type Pt,
+  snap,
   snapPt,
   sub,
   unit,
@@ -18,12 +20,31 @@ import {
   type WallEndNeighbor,
   wallCorners,
 } from '$lib/geometry';
-import { addWall, docBBox, findJointNear, MIN_WALL_LENGTH, moveJoint, wallsAtJoint } from '$lib/model/ops';
+import {
+  addWall,
+  docBBox,
+  findJointNear,
+  MIN_WALL_LENGTH,
+  moveJoint,
+  resizeWindow,
+  setWindowOffset,
+  violatedWindowFloors,
+  wallWindowSpanCm,
+  wallsAtJoint,
+} from '$lib/model/ops';
 import { findRooms } from '$lib/model/rooms';
 import { plan } from '$lib/stores/plan.svelte';
 import { ui } from '$lib/stores/ui.svelte';
 import { viewport } from '$lib/stores/viewport.svelte';
-import { DEFAULT_THICKNESS, type Joint, type JointId, type WallId } from '$lib/types';
+import {
+  DEFAULT_THICKNESS,
+  MIN_WINDOW_LENGTH,
+  type Joint,
+  type JointId,
+  type WallId,
+  type WallWindow,
+  type WindowId,
+} from '$lib/types';
 
 const ATTACH_PX = 12;
 const ZOOM_WHEEL_SENSITIVITY = 0.0015;
@@ -45,6 +66,15 @@ let cursorWorld = $state<Pt>({ x: 0, y: 0 });
 type Drafts = Record<JointId, Pt>;
 let drafts = $state.raw<Drafts>({});
 let dragJointId = $state<JointId | null>(null);
+
+// window gestures: drafts drive rendering, winDrag is handler-only bookkeeping
+interface WinDraft {
+  offset: number;
+  length: number;
+}
+let windowDrafts = $state.raw<Record<WindowId, WinDraft>>({});
+type WinDrag = { kind: 'slide'; id: WindowId; grab: number } | { kind: 'resize'; id: WindowId; side: 'start' | 'end' };
+let winDrag: WinDrag | null = null;
 
 // gesture state NOT used by rendering
 let dragMoved = false;
@@ -138,12 +168,46 @@ const wallExts = $derived.by<Record<string, { start: number; end: number }>>(() 
   return res;
 });
 
+/** windows merged with drag drafts and resolved against rendered joints;
+ * offsets are re-clamped here so previews stay honest mid-joint-drag */
+const renderWindows = $derived.by<(WallWindow & { a: Pt; b: Pt; t: number })[]>(() => {
+  const out: (WallWindow & { a: Pt; b: Pt; t: number })[] = [];
+  for (const win of Object.values(plan.doc.windows)) {
+    const w = plan.doc.walls[win.wallId];
+    if (!w) continue;
+    const a = renderJoints[w.startJointId];
+    const b = renderJoints[w.endJointId];
+    if (!a || !b) continue;
+    const d = windowDrafts[win.id];
+    const length = Math.max(MIN_WINDOW_LENGTH, d?.length ?? win.length);
+    const maxOff = Math.max(0, dist(a, b) - length);
+    const offset = Math.max(0, Math.min(maxOff, d?.offset ?? win.offset));
+    out.push({ ...win, offset, length, a, b, t: w.thickness });
+  }
+  return out;
+});
+
+/** resize handles for the selected window, in the top layer (see §4 layering) */
+const selectedWindowHandles = $derived.by(() => {
+  const sel = ui.selectedWindowId;
+  if (!sel || !plan.doc.windows[sel]) return [];
+  const win = renderWindows.find((w) => w.id === sel);
+  if (!win) return [];
+  const u = unit(sub(win.b, win.a));
+  return [
+    { winId: sel, side: 'start' as const, p: addPt(win.a, mul(u, win.offset)) },
+    { winId: sel, side: 'end' as const, p: addPt(win.a, mul(u, win.offset + win.length)) },
+  ];
+});
+
 /** walls rendered with full selection treatment: the selected wall — or,
  * while a joint is being dragged — every wall attached to that joint, so
  * all affected lengths/angles annotate automatically */
 const highlightIds = $derived.by<WallId[]>(() => {
   if (dragJointId) return wallsAtJoint(plan.doc, dragJointId).map((w) => w.id);
-  return ui.selectedWallId ? [ui.selectedWallId] : [];
+  // a selected window suppresses its wall's highlight — the blue overlay and
+  // dimension lines would visually fight the window's own editing UI
+  return ui.selectedWallId && !ui.selectedWindowId ? [ui.selectedWallId] : [];
 });
 
 // handles live in a top-level layer so wall hit-lines can never cover them
@@ -380,6 +444,94 @@ function localPt(e: PointerEvent): Pt {
   return { x: e.clientX - r.left, y: e.clientY - r.top };
 }
 
+// --- window gestures ---------------------------------------------------------
+
+/** draft values for a window, falling back to its committed doc state */
+function windowBase(id: WindowId): WinDraft | null {
+  return (
+    windowDrafts[id] ??
+    (plan.doc.windows[id] ? { offset: plan.doc.windows[id].offset, length: plan.doc.windows[id].length } : null)
+  );
+}
+
+/** projection of a world point onto the wall axis: cm from the start joint */
+function projOnWall(wallId: WallId, world: Pt): { s: number; len: number } | null {
+  const w = plan.doc.walls[wallId];
+  if (!w) return null;
+  const a = renderJoints[w.startJointId];
+  const b = renderJoints[w.endJointId];
+  if (!a || !b) return null;
+  const u = unit(sub(b, a));
+  return { s: (world.x - a.x) * u.x + (world.y - a.y) * u.y, len: dist(a, b) };
+}
+
+function startWindowSlide(id: WindowId, world: Pt) {
+  const win = plan.doc.windows[id];
+  const base = windowBase(id);
+  const proj = win && projOnWall(win.wallId, world);
+  if (!win || !base || !proj) return;
+  ui.select(win.wallId); // clears any window selection…
+  ui.selectWindow(id); // …then selects this one; wall stays as context
+  // snap the grab point too, so offset = snap(s) − grab stays on-grid
+  winDrag = { kind: 'slide', id, grab: (ui.snapEnabled ? snap(proj.s) : proj.s) - base.offset };
+}
+
+function startWindowResize(id: WindowId, side: 'start' | 'end', world: Pt) {
+  const win = plan.doc.windows[id];
+  if (!win || !windowBase(id) || !projOnWall(win.wallId, world)) return;
+  ui.select(win.wallId);
+  ui.selectWindow(id);
+  winDrag = { kind: 'resize', id, side };
+}
+
+function applyWindowDrag(world: Pt) {
+  if (!winDrag) return;
+  const win = plan.doc.windows[winDrag.id];
+  const base = windowBase(winDrag.id);
+  const proj = win && projOnWall(win.wallId, world);
+  if (!win || !base || !proj) {
+    cancelWindowDrag();
+    return;
+  }
+  const q = (v: number) => (ui.snapEnabled ? snap(v) : v);
+  const s = q(proj.s);
+  let { offset, length } = base;
+  if (winDrag.kind === 'slide') {
+    offset = Math.max(0, Math.min(Math.max(0, proj.len - length), s - winDrag.grab));
+  } else if (winDrag.side === 'start') {
+    const end = offset + length;
+    offset = Math.max(0, Math.min(end - MIN_WINDOW_LENGTH, s));
+    length = end - offset;
+  } else {
+    const end = Math.max(offset + MIN_WINDOW_LENGTH, Math.min(proj.len, s));
+    length = end - offset;
+  }
+  // quantize BOTH edges, then re-clamp — a fractional base (legacy doc) or a
+  // quantized shift must never push the window past the wall end
+  offset = q(offset);
+  length = q(length);
+  offset = Math.max(0, Math.min(Math.max(0, proj.len - length), offset));
+  windowDrafts = { ...windowDrafts, [winDrag.id]: { offset, length } };
+}
+
+function commitWindowDrag() {
+  const d = winDrag && windowDrafts[winDrag.id];
+  const exists = winDrag && plan.doc.windows[winDrag.id];
+  if (d && exists && winDrag) {
+    if (winDrag.kind === 'slide') {
+      plan.commit('Move window', setWindowOffset(plan.doc, winDrag.id, d.offset));
+    } else {
+      plan.commit('Resize window', resizeWindow(plan.doc, winDrag.id, d.offset, d.length));
+    }
+  }
+  cancelWindowDrag();
+}
+
+function cancelWindowDrag() {
+  winDrag = null;
+  windowDrafts = {};
+}
+
 function onPointerDown(e: PointerEvent) {
   if (!svgEl || (panning && spaceHeld)) return;
   try {
@@ -400,6 +552,11 @@ function onPointerDown(e: PointerEvent) {
   const target = e.target as Element;
   const jointHit = target.closest('[data-joint-id]')?.getAttribute('data-joint-id') ?? null;
   const wallHit = target.closest('[data-wall-id]')?.getAttribute('data-wall-id') ?? null;
+  const winId = target.closest('[data-window-id]')?.getAttribute('data-window-id') ?? null;
+  const winHandleSide =
+    winId && target.closest('[data-window-handle]')?.getAttribute('data-window-handle') === 'end'
+      ? ('end' as const)
+      : ('start' as const);
 
   if (ui.tool === 'draw') {
     const res = resolveDrawPoint(world);
@@ -423,6 +580,13 @@ function onPointerDown(e: PointerEvent) {
     dragMoved = false;
     return;
   }
+  if (winId && plan.doc.windows[winId]) {
+    // windows beat wall hit-lines: they render above the wall body
+    const side = winHandleSide;
+    if (target.closest('[data-window-handle]')) startWindowResize(winId, side, world);
+    else startWindowSlide(winId, world);
+    return;
+  }
   if (wallHit && plan.doc.walls[wallHit]) {
     // walls are selected but not translatable: moving a whole wall would
     // silently change connected walls' lengths and angles (see decisions §7)
@@ -442,6 +606,10 @@ function onPointerMove(e: PointerEvent) {
     panLast = lp;
     return;
   }
+  if (winDrag) {
+    applyWindowDrag(cursorWorld);
+    return;
+  }
   if (dragJointId) {
     dragMoved = true;
     drafts = { ...drafts, [dragJointId]: resolveDragPoint(dragJointId, cursorWorld) };
@@ -457,9 +625,26 @@ function onPointerUp(e: PointerEvent) {
   panning = false;
   panLast = null;
 
+  if (winDrag) {
+    commitWindowDrag();
+    return;
+  }
   if (dragJointId) {
     const p = drafts[dragJointId];
-    if (dragMoved && p) plan.commit('Move joint', moveJoint(plan.doc, dragJointId, p));
+    if (dragMoved && p) {
+      const candidate = moveJoint(plan.doc, dragJointId, p);
+      const bad = violatedWindowFloors(candidate);
+      if (bad.length > 0) {
+        // shrinking a wall below its windows is rejected — windows keep their lengths
+        ui.showError(
+          `Move rejected: a wall would get shorter than its windows (needs at least ${fmtCm(
+            Math.max(...bad.map((id) => wallWindowSpanCm(plan.doc, id))),
+          )} cm).`,
+        );
+      } else {
+        plan.commit('Move joint', candidate);
+      }
+    }
   }
   finishDrag();
 }
@@ -476,6 +661,7 @@ function onKeyDown(e: KeyboardEvent) {
     spaceHeld = true;
   } else if (e.key === 'Escape') {
     endDraw();
+    cancelWindowDrag();
   }
 }
 
@@ -537,6 +723,20 @@ const cursorClass = $derived.by(() => {
         <WallView {wall} joints={renderJoints} neighbors={wallEndNeighbors[wall.id] ?? { start: null, end: null }} />
       {/each}
 
+      <!-- windows sit on their walls; painted after ALL walls so a neighbor
+           polygon can never cover an opening -->
+      {#each renderWindows as wv (wv.id)}
+        <WindowView
+          id={wv.id}
+          a={wv.a}
+          b={wv.b}
+          thickness={wv.t}
+          offset={wv.offset}
+          length={wv.length}
+          scale={viewport.scale}
+          selected={wv.id === ui.selectedWindowId} />
+      {/each}
+
       <!-- joint dots: make connection points visible for closing chains -->
       {#each Object.values(renderJoints) as j (j.id)}
         <circle class="joint-dot" cx={j.x} cy={j.y} r={3 / viewport.scale} />
@@ -563,6 +763,18 @@ const cursorClass = $derived.by(() => {
           data-joint-id={j.id}
           cx={j.x}
           cy={j.y}
+          r={6 / viewport.scale}
+          stroke-width={2 / viewport.scale} />
+      {/each}
+
+      <!-- window resize handles: topmost so wall handles can't steal their clicks -->
+      {#each selectedWindowHandles as hp (hp.side)}
+        <circle
+          class="handle win-handle"
+          data-window-id={hp.winId}
+          data-window-handle={hp.side}
+          cx={hp.p.x}
+          cy={hp.p.y}
           r={6 / viewport.scale}
           stroke-width={2 / viewport.scale} />
       {/each}

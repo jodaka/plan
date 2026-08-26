@@ -51,6 +51,12 @@ bun test           # unit tests (bun:test, tests/ directory)
   `rgb(250, 235, 215)` under the walls with the clear-floor area (inner m², inset by
   wall halves) at its centroid; deleting or moving walls updates/dissolves rooms
   automatically
+- Windows: "Add window" in the inspector places a default window on the selected wall
+  (centered in the largest gap); windows are selectable, resizable by dragging their two
+  round handles on canvas or via the inspector length field, and slidable by dragging
+  their body; thickness always equals the host wall's; deleting a wall deletes its
+  windows; wall resizes keep window offsets while they fit (else clamp flush) and are
+  REJECTED with an error toast when a wall would get shorter than its total window span
 - Room-bound entities: `doc.roomObjects` (furniture/doors/…, keyed by the room's stable
   wall-set key) — deleting a wall that belongs to a room asks for confirmation first
   (it would destroy the room and orphan its objects; objects are kept, never culled)
@@ -83,6 +89,7 @@ src/lib/
   components/
     Canvas.svelte          # svg, pointer/wheel/keyboard gestures, drafts, top layers
     WallView.svelte        # wall body + invisible fat hit-line (corner extension math)
+    WindowView.svelte      # window frame + glass on its wall + invisible hit area
     RoomView.svelte        # room polygon + m² label at centroid (pointer-events: none)
     WallDims.svelte        # outer/inner dimension lines for highlighted walls
     AngleArcs.svelte       # angle arcs at joints of highlighted walls
@@ -104,8 +111,9 @@ tests/model.test.ts        # bun:test unit tests for geometry + ops
    components/routes use `$lib/...`. Modules imported by tests must not depend on
    `$app/*` (see `ai/decisions.md` §12).
 5. SVG layer order in Canvas is load-bearing (see `ai/decisions.md` §4): grid → rooms →
-   walls → joint dots → selection overlay → handles → dimensions. Hit-testing relies on
-   `data-wall-id` / `data-joint-id` attributes and paint order.
+   walls → windows → joint dots → selection overlay → wall handles → window handles →
+   dimensions. Hit-testing relies on `data-wall-id` / `data-joint-id` /
+   `data-window-id` attributes and paint order.
 6. Walls render as mitered polygons (`wallCorners`): connected ends are cut along the
    miter line shared with the thickest neighbor at that joint; free ends stay flush.
    `outer = centerline + extStart + extEnd`, `inner = centerline − extStart − extEnd`.

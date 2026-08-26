@@ -3,14 +3,24 @@ import { angleBetweenDeg, axisAlign, dist, snap, snapPt, wallAngleDeg, wallCorne
 import {
   addWall,
   deleteWall,
+  deleteWindow,
   docBBox,
   emptyDoc,
   findJointNear,
+  MIN_WALL_LENGTH,
   moveJoint,
+  resizeWindow,
   setInnerLength,
   setLength,
   setThickness,
+  setWindowLength,
+  setWindowOffset,
+  violatedWindowFloors,
+  addWindow,
+  wallWindowSpanCm,
+  windowsOnWall,
 } from '../src/lib/model/ops';
+import { sanitizeDoc } from '../src/lib/model/validate';
 
 /** 210×210 centerline box, all walls t=10 → every inner span is 200. */
 function boxDoc() {
@@ -284,5 +294,179 @@ describe('ops', () => {
 
   test('dist sanity', () => {
     expect(dist({ x: 3, y: 4 }, { x: 0, y: 0 })).toBe(5);
+  });
+});
+
+describe('windows', () => {
+  test('addWindow centers a default window in the free span', () => {
+    const { doc } = addWall(emptyDoc(), { x: 0, y: 0 }, { x: 300, y: 0 });
+    const wallId = Object.keys(doc.walls)[0];
+    const res = addWindow(doc, wallId);
+    expect(res.window).not.toBeNull();
+    const win = res.window!;
+    expect(win.wallId).toBe(wallId);
+    expect(win.offset).toBe(100); // centered on a 300 cm wall
+    expect(Object.keys(res.doc.windows)).toHaveLength(1);
+    // original doc untouched (immutability)
+    expect(Object.keys(doc.windows)).toHaveLength(0);
+  });
+
+  test('addWindow places the next window into the largest gap', () => {
+    let doc = addWall(emptyDoc(), { x: 0, y: 0 }, { x: 500, y: 0 }).doc;
+    const wallId = Object.keys(doc.walls)[0];
+    doc = addWindow(doc, wallId).doc; // [200..300]
+    doc = addWindow(doc, wallId).doc;
+    const wins = windowsOnWall(doc, wallId);
+    expect(wins).toHaveLength(2);
+    // both gaps are 200 cm wide; ties fill the earliest one → new window [50..150]
+    expect(wins[0].offset).toBe(50);
+  });
+
+  test('addWindow places into a strictly larger later gap', () => {
+    let doc = addWall(emptyDoc(), { x: 0, y: 0 }, { x: 600, y: 0 }).doc;
+    const wallId = Object.keys(doc.walls)[0];
+    doc = addWindow(doc, wallId).doc; // [250..350]
+    doc = setWindowOffset(doc, windowsOnWall(doc, wallId)[0].id, 0); // [0..100]
+    doc = addWindow(doc, wallId).doc;
+    const wins = windowsOnWall(doc, wallId);
+    // 100 cm window centered in the 500 cm gap [100..600]
+    expect(wins[1].offset).toBe(300);
+  });
+
+  test('addWindow rejects walls without room', () => {
+    const { doc } = addWall(emptyDoc(), { x: 0, y: 0 }, { x: 8, y: 0 });
+    const wallId = Object.keys(doc.walls)[0];
+    const res = addWindow(doc, wallId);
+    expect(res.window).toBeNull();
+    expect(res.doc).toBe(doc);
+  });
+
+  test('setWindowLength grows around the center and clamps into the wall', () => {
+    let doc = addWall(emptyDoc(), { x: 0, y: 0 }, { x: 100, y: 0 }).doc;
+    const wallId = Object.keys(doc.walls)[0];
+    doc = addWindow(doc, wallId).doc;
+    const win = windowsOnWall(doc, wallId)[0];
+
+    const grown = setWindowLength(doc, win.id, 60);
+    const g = grown.windows[win.id];
+    expect(g.length).toBe(60);
+    expect(g.offset).toBe(20); // center stays at 50
+
+    // growing past the wall caps at wall length, flush to the end
+    const huge = setWindowLength(doc, win.id, 500);
+    const h = huge.windows[win.id];
+    expect(h.length).toBe(100);
+    expect(h.offset).toBe(0);
+
+    // below the minimum clamps up
+    const tiny = setWindowLength(doc, win.id, 1);
+    expect(tiny.windows[win.id].length).toBe(10);
+  });
+
+  test('setWindowOffset slides within wall bounds', () => {
+    let doc = addWall(emptyDoc(), { x: 0, y: 0 }, { x: 200, y: 0 }).doc;
+    const wallId = Object.keys(doc.walls)[0];
+    doc = addWindow(doc, wallId).doc; // [50..150], len 100
+    const win = windowsOnWall(doc, wallId)[0];
+
+    expect(setWindowOffset(doc, win.id, 80).windows[win.id].offset).toBe(80);
+    expect(setWindowOffset(doc, win.id, -5).windows[win.id].offset).toBe(0);
+    expect(setWindowOffset(doc, win.id, 150).windows[win.id].offset).toBe(100); // 200 − 100
+  });
+
+  test('resizeWindow clamps both edges back into the wall', () => {
+    let doc = addWall(emptyDoc(), { x: 0, y: 0 }, { x: 100, y: 0 }).doc;
+    const wallId = Object.keys(doc.walls)[0];
+    doc = addWindow(doc, wallId).doc;
+    const win = windowsOnWall(doc, wallId)[0];
+
+    const r = resizeWindow(doc, win.id, -30, 40);
+    expect(r.windows[win.id]).toEqual({ id: win.id, wallId, offset: 0, length: 40 });
+
+    const r2 = resizeWindow(doc, win.id, 90, 500);
+    expect(r2.windows[win.id]).toEqual({ id: win.id, wallId, offset: 0, length: 100 });
+  });
+
+  test('moveJoint keeps windows in place while they fit, then clamps flush', () => {
+    let doc = addWall(emptyDoc(), { x: 0, y: 0 }, { x: 300, y: 0 }).doc;
+    const wallId = Object.keys(doc.walls)[0];
+    const startJid = doc.walls[wallId].startJointId;
+    doc = addWindow(doc, wallId, { length: 50 }).doc;
+    const win = windowsOnWall(doc, wallId)[0];
+    doc = setWindowOffset(doc, win.id, 250); // [250..300]
+
+    // shrink to 270: window no longer fits → clamped flush to the end
+    const shrunk = moveJoint(doc, startJid, { x: 30, y: 0 });
+    const s = shrunk.windows[win.id];
+    expect(s.length).toBe(50);
+    expect(s.offset).toBe(220); // 270 − 50
+
+    // grow back: offset is NOT restored (kept in place means clamped, not tracked)
+    const regrown = moveJoint(shrunk, startJid, { x: 0, y: 0 });
+    expect(regrown.windows[win.id].offset).toBe(220);
+
+    // a window that still fits does not move
+    doc = setWindowOffset(regrown, win.id, 100);
+    const moved = moveJoint(doc, startJid, { x: -10, y: 0 }); // len 310
+    expect(moved.windows[win.id].offset).toBe(100);
+  });
+
+  test('violatedWindowFloors flags walls shrunk below their window span', () => {
+    let doc = addWall(emptyDoc(), { x: 0, y: 0 }, { x: 100, y: 0 }).doc;
+    const wallId = Object.keys(doc.walls)[0];
+    doc = addWindow(doc, wallId).doc; // span 100 → wall already at its floor
+
+    expect(violatedWindowFloors(doc)).toEqual([]); // exactly at floor is legal
+    const bad = moveJoint(doc, doc.walls[wallId].startJointId, { x: 5, y: 0 });
+    expect(violatedWindowFloors(bad)).toEqual([wallId]);
+
+    const ok = setWindowLength(bad, windowsOnWall(bad, wallId)[0].id, 90);
+    expect(violatedWindowFloors(ok)).toEqual([]);
+  });
+
+  test('deleteWall removes its windows; deleteWindow removes one', () => {
+    let doc = addWall(emptyDoc(), { x: 0, y: 0 }, { x: 300, y: 0 }).doc;
+    const wallA = Object.keys(doc.walls)[0];
+    doc = addWall(doc, { x: 300, y: 0 }, { x: 300, y: 200 }, { attachTolCm: 0.01 }).doc;
+    const wallB = Object.keys(doc.walls)[1];
+    doc = addWindow(doc, wallA).doc;
+    doc = addWindow(doc, wallB).doc;
+
+    const afterWin = deleteWindow(doc, windowsOnWall(doc, wallA)[0].id);
+    expect(windowsOnWall(afterWin, wallA)).toHaveLength(0);
+    expect(windowsOnWall(afterWin, wallB)).toHaveLength(1);
+
+    const afterWall = deleteWall(afterWin, wallB);
+    expect(Object.keys(afterWall.walls)).toHaveLength(1);
+    expect(Object.keys(afterWall.windows)).toHaveLength(0);
+  });
+
+  test('wallWindowSpanCm sums window lengths', () => {
+    let doc = addWall(emptyDoc(), { x: 0, y: 0 }, { x: 400, y: 0 }).doc;
+    const wallId = Object.keys(doc.walls)[0];
+    expect(wallWindowSpanCm(doc, wallId)).toBe(0);
+    doc = addWindow(doc, wallId).doc; // 100
+    doc = addWindow(doc, wallId).doc; // 100
+    expect(wallWindowSpanCm(doc, wallId)).toBe(200);
+  });
+
+  test('sanitizeDoc repairs out-of-range windows and culls orphans', () => {
+    const base = addWall(emptyDoc(), { x: 0, y: 0 }, { x: 100, y: 0 }).doc;
+    const raw = {
+      version: 1,
+      joints: base.joints,
+      walls: base.walls,
+      roomObjects: {},
+      windows: {
+        keep: { wallId: Object.keys(base.walls)[0], offset: 95, length: 50 },
+        orphan: { wallId: 'missing', offset: 0, length: 10 },
+        junk: { wallId: 42 },
+      },
+    };
+    const doc = sanitizeDoc(raw)!;
+    expect(Object.keys(doc.windows)).toHaveLength(1);
+    const kept = doc.windows.keep;
+    expect(kept.length).toBe(50); // capped to wall length
+    expect(kept.offset).toBe(50); // clamped flush to the end
   });
 });

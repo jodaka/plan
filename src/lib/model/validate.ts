@@ -1,4 +1,6 @@
-import type { PlanDoc } from '../types';
+import type { PlanDoc, WallWindow } from '../types';
+import { MIN_WINDOW_LENGTH } from '../types';
+import { dist } from '../geometry';
 
 function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null;
@@ -10,10 +12,10 @@ function num(v: unknown): v is number {
 
 /**
  * Repairs/culls malformed plan data (wrong shape, non-finite coordinates,
- * dangling joint references, broken room objects) so corrupt input degrades
- * to a partial plan instead of crashing the app. Tolerates pre-roomObjects
- * docs (field normalized to {}). Rooms themselves are derived and are never
- * part of persisted data.
+ * dangling joint references, broken room objects, windows off their walls)
+ * so corrupt input degrades to a partial plan instead of crashing the app.
+ * Tolerates pre-roomObjects / pre-windows docs (fields normalized to {}).
+ * Rooms themselves are derived and are never part of persisted data.
  */
 export function sanitizeDoc(data: unknown): PlanDoc | null {
   if (!isRecord(data) || data.version !== 1 || !isRecord(data.joints) || !isRecord(data.walls)) {
@@ -61,5 +63,23 @@ export function sanitizeDoc(data: unknown): PlanDoc | null {
       }
     }
   }
-  return { version: 1, joints, walls, roomObjects };
+
+  // windows: must reference a surviving wall and sit inside its span
+  const windows: PlanDoc['windows'] = {};
+  if (isRecord(data.windows)) {
+    for (const [id, w] of Object.entries(data.windows)) {
+      if (!isRecord(w) || typeof w.wallId !== 'string' || !num(w.offset) || !num(w.length)) continue;
+      const wall = walls[w.wallId];
+      if (!wall) continue;
+      const a = joints[wall.startJointId];
+      const b = joints[wall.endJointId];
+      if (!a || !b) continue;
+      const wallLen = dist(a, b);
+      const length = Math.max(MIN_WINDOW_LENGTH, Math.min(wallLen, w.length));
+      const offset = Math.max(0, Math.min(Math.max(0, wallLen - length), w.offset));
+      const win: WallWindow = { id, wallId: w.wallId, offset, length };
+      windows[id] = win;
+    }
+  }
+  return { version: 1, joints, walls, roomObjects, windows };
 }

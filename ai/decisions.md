@@ -274,7 +274,7 @@ needs a number, not a string.
 ## 14. Deliberately not done (yet)
 
 - Grid visibility defaults to OFF (spec: invisible grid defines snapping; toggle exists).
-- No marquee/multi-select, no wall splitting, no doors/windows.
+- No marquee/multi-select, no wall splitting, no doors. Windows exist since v0.2.0 (§16).
 - Inspector length edits commit per `change` event (spinner clicks can create several
   history entries; capped by the 500-entry limit).
 - Extension geometry assumes (near-)perpendicular corners; non-right angles use the same
@@ -310,3 +310,38 @@ drag the polygon and its area follow the cursor live, before any commit.
 (numbers only — the teal fill still distinguishes the inner span) and rotate parallel to
 the wall via SVG `rotate(angle cx cy)`, normalized to (−90°, 90°] so numbers never render
 upside down on leftward walls.
+
+## 16. Windows are wall-bound openings, parameterized along the wall
+
+**Decision**: `WallWindow { id, wallId, offset, length }` in `doc.windows`. A window is
+positioned `offset` cm from its wall's START JOINT along the centerline, spanning the
+wall's full thickness (never stored — it always equals the host wall's). Windows are NOT
+`roomObjects`: they belong to a wall and must survive room dissolution, so the room-key
+binding would be wrong.
+
+**Why offset-from-start**: joints are first-class (§2), so the anchor survives every
+reshape — moving either end joint keeps the window at the same distance from the start.
+When a resize/joint move shortens the wall, windows keep their offset while it fits,
+else clamp flush to the nearest end (`clampWallWindows`, called from `moveJoint` for
+every attached wall — thickness edits route through it too).
+
+**Window floor**: a wall's centerline length must stay ≥ Σ its window lengths
+(`violatedWindowFloors`). Windows never shrink implicitly, so this is checked at commit
+boundaries in the UI: inspector length/thickness edits and canvas joint drags compute
+the candidate doc first and REJECT it with an error toast instead of committing. Ops
+stay pure; enforcement lives where the user can be told why. The floor uses the
+centerline because windows live on the centerline; the inspector converts to inner span.
+
+**Interaction**: "Add window" places a default-length window centered in the largest
+gap between existing windows (ties → earliest gap), shrinking to fit when needed.
+Windows render above ALL walls (`data-window-id` on the `<g>` so any child resolves via
+`closest()`); slide by dragging the body, resize via two round handles that live in the
+top layer (same paint-order reasoning as §4's joint handles). Drag previews use
+`windowDrafts` (`$state.raw`) merged into rendering only, committed at pointerup as
+"Resize window"/"Move window" — same discipline as §1. Mid-joint-drag, rendering
+re-clamps window offsets against the drafted joints so previews stay honest before the
+floor check rejects or commits.
+
+**Persistence**: `PlanDoc.windows` is additive — version stays 1; `sanitizeDoc` culls
+windows with unknown walls and clamps survivors back into their wall span, so old saves
+(normalizing missing field → `{}`) and foreign files degrade safely.
