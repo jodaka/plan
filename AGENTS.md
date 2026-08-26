@@ -68,7 +68,18 @@ bun test           # unit tests (bun:test, tests/ directory)
   (modes are quadrants relative to the wall axis start→end); doors share the wall axis
   with windows (gaps/floors count both), delete with their wall, show the same amber
   gap hints as windows when selected, and persist as `doc.doors`
-- Room-bound entities: `doc.roomObjects` (furniture/…, keyed by the room's stable
+- Room items (furniture): a categorized library in the side panel (Bedroom: bed,
+  double bed · Living room: chair, sofa, table, corner table, closet — `model/catalog.ts`,
+  adding an item = one data entry) — drag a row onto a room to place it (`Add ${label}`);
+  items are bound to the room's stable key and move with it (room drag translates them);
+  selectable, draggable (snaps to wall inner faces, sibling edges/centers + grid),
+  resizable via 4 corner handles, rotatable via a lollipop handle (15° detents, exact
+  angle in the inspector); item–item overlap is ALLOWED but both items tint red;
+  item–wall/door/window overlap or leaving the room is forbidden — live red tint and
+  REJECTED with an error toast on release (library drops included); dropping into a
+  different room re-binds it; orphaned items (room destroyed) render grayed and can be
+  re-bound by dropping them into any room
+- Room-bound entities: `doc.roomObjects` (furniture, keyed by the room's stable
   wall-set key) — deleting a wall that belongs to a room asks for confirmation first
   (it would destroy the room and orphan its objects; objects are kept, never culled)
 - Undo/redo (Ctrl/Cmd+Z, Ctrl+Shift+Z / Ctrl+Y, toolbar buttons) with labeled entries
@@ -85,8 +96,9 @@ bun test           # unit tests (bun:test, tests/ directory)
 ```
 src/lib/
   types.ts                 # Joint, Wall, RoomObject, PlanDoc; thickness constants
-  geometry.ts              # pure math: snap, angles, extendPts, fmtCm (unit = 1 cm)
+  geometry.ts              # pure math: snap, angles, itemCorners/SAT/snap, fmtCm (unit = 1 cm)
   model/
+    catalog.ts             # categorized item catalog (pure data — add items here)
     ops.ts                 # ALL document mutations as pure (doc, …) => doc functions
     rooms.ts               # findRooms: bounded faces of the wall graph (derived rooms)
     storage.ts             # localStorage load/save (browser-guarded)
@@ -102,6 +114,7 @@ src/lib/
     WallView.svelte        # wall body + invisible fat hit-line (corner extension math)
     WindowView.svelte      # window frame + glass on its wall + invisible hit area
     DoorView.svelte        # door jamb frame + swing leaf/arc + invisible hit area
+    FurnitureView.svelte   # room item body + per-kind details + invisible hit area
     RoomView.svelte        # room polygon + m² label at centroid (label = room drag handle)
     WallDims.svelte        # outer/inner dimension lines for highlighted walls
     AngleArcs.svelte       # angle arcs at joints of highlighted walls
@@ -123,9 +136,10 @@ tests/model.test.ts        # bun:test unit tests for geometry + ops
    components/routes use `$lib/...`. Modules imported by tests must not depend on
    `$app/*` (see `ai/decisions.md` §12).
 5. SVG layer order in Canvas is load-bearing (see `ai/decisions.md` §4): grid → rooms →
-   walls → windows → doors → joint dots → selection overlay → wall handles → window
-   handles → door handles → dimensions. Hit-testing relies on `data-wall-id` /
-   `data-joint-id` / `data-window-id` / `data-door-id` attributes and paint order.
+   walls → windows → doors → items → joint dots → selection overlay → wall handles →
+   window handles → door handles → item handles → dimensions. Hit-testing relies on
+   `data-wall-id` / `data-joint-id` / `data-window-id` / `data-door-id` /
+   `data-item-id` attributes and paint order.
 6. Walls render as mitered polygons (`wallCorners`): connected ends are cut along the
    miter line shared with the thickest neighbor at that joint; free ends stay flush.
    `outer = centerline + extStart + extEnd`, `inner = centerline − extStart − extEnd`.

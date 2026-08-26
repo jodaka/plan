@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { fmtM2, polygonCentroid } from '../src/lib/geometry';
-import { addRoomObject, addWall, deleteWall, emptyDoc, moveJoint, removeRoomObject } from '../src/lib/model/ops';
+import { addRoomItem, addWall, deleteWall, emptyDoc, moveJoint, removeRoomItem } from '../src/lib/model/ops';
 import { findRooms, roomKey, roomObjectsIn, shoelaceArea } from '../src/lib/model/rooms';
 import { sanitizeDoc } from '../src/lib/model/validate';
 
@@ -278,27 +278,29 @@ describe('room identity & bound objects', () => {
     const doc0 = boxDoc();
     const room = findRooms(doc0.joints, doc0.walls)[0];
 
-    const { doc, object } = addRoomObject(doc0, room.key, 'furniture', { x: 10, y: 10 });
-    expect(object).toBeTruthy();
-    expect(object!.roomId).toBe(room.key);
+    const { doc, item } = addRoomItem(doc0, room.key, 'furniture', { x: 10, y: 10 });
+    expect(item).toBeTruthy();
+    expect(item!.roomId).toBe(room.key);
+    // catalog fallback size for unknown kinds + default rotation
+    expect([item!.w, item!.d, item!.rotation]).toEqual([60, 60, 0]);
     expect(Object.keys(roomObjectsIn(doc, room.key))).toHaveLength(1);
     expect(Object.keys(doc0.roomObjects)).toHaveLength(0); // input untouched
 
-    const other = addRoomObject(doc, 'other-room', 'door', { x: 1, y: 2 }).doc;
+    const other = addRoomItem(doc, 'other-room', 'door', { x: 1, y: 2 }).doc;
     expect(Object.keys(roomObjectsIn(other, room.key))).toHaveLength(1);
     expect(Object.keys(other.roomObjects)).toHaveLength(2);
 
-    const rejected = addRoomObject(doc, room.key, 'door', { x: Number.NaN, y: 2 });
-    expect(rejected.object).toBeNull();
+    const rejected = addRoomItem(doc, room.key, 'door', { x: Number.NaN, y: 2 });
+    expect(rejected.item).toBeNull();
     expect(rejected.doc).toBe(doc);
 
     const afterDel = deleteWall(other, Object.keys(other.walls)[0]);
     expect(findRooms(afterDel.joints, afterDel.walls)).toHaveLength(0);
     expect(Object.keys(afterDel.roomObjects)).toHaveLength(2); // kept, orphaned
 
-    const cleaned = removeRoomObject(afterDel, object!.id);
+    const cleaned = removeRoomItem(afterDel, item!.id);
     expect(Object.keys(cleaned.roomObjects)).toHaveLength(1);
-    expect(removeRoomObject(cleaned, 'nope')).toBe(cleaned);
+    expect(removeRoomItem(cleaned, 'nope')).toBe(cleaned);
   });
 
   test('sanitizeDoc normalizes missing roomObjects and culls malformed entries', () => {
@@ -319,7 +321,8 @@ describe('room identity & bound objects', () => {
       },
     });
     expect(Object.keys(s?.roomObjects ?? {})).toEqual(['a']);
-    expect(s?.roomObjects.a).toEqual({ id: 'a', roomId: 'r', kind: 'door', x: 1, y: 2 });
+    // newer size/rotation fields fall back to catalog defaults ('door' is unknown → 60×60)
+    expect(s?.roomObjects.a).toEqual({ id: 'a', roomId: 'r', kind: 'door', x: 1, y: 2, w: 60, d: 60, rotation: 0 });
   });
 });
 

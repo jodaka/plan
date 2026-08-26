@@ -2,12 +2,19 @@ import type { DoorId, WallId, WindowId } from '../types';
 
 export type Tool = 'select' | 'draw';
 
+export interface LibraryDrag {
+  kind: string;
+  label: string;
+}
+
 let tool = $state<Tool>('select');
 let snapEnabled = $state(true);
 let showGrid = $state(false);
 let selectedWallId = $state<WallId | null>(null);
 let selectedWindowId = $state<WindowId | null>(null);
 let selectedDoorId = $state<DoorId | null>(null);
+let selectedItemId = $state<string | null>(null);
+let libraryDrag = $state<LibraryDrag | null>(null);
 
 let errorMsg = $state<string | null>(null);
 let errorTimer: ReturnType<typeof setTimeout> | undefined;
@@ -38,29 +45,54 @@ export const ui = {
   get selectedWallId(): WallId | null {
     return selectedWallId;
   },
-  /** Selecting a wall always drops an opening selection (and vice versa below). */
+  /** Selecting a wall always drops an opening/item selection (and vice versa below). */
   select(wallId: WallId | null): void {
     selectedWallId = wallId;
     selectedWindowId = null;
     selectedDoorId = null;
+    selectedItemId = null;
   },
 
   get selectedWindowId(): WindowId | null {
     return selectedWindowId;
   },
-  /** Selects a window (clearing any door selection); its wall stays selected as context. */
+  /** Selects a window (clearing any door/item selection); its wall stays selected as context. */
   selectWindow(id: WindowId | null): void {
     selectedWindowId = id;
     selectedDoorId = null;
+    selectedItemId = null;
   },
 
   get selectedDoorId(): DoorId | null {
     return selectedDoorId;
   },
-  /** Selects a door (clearing any window selection); its wall stays selected as context. */
+  /** Selects a door (clearing any window/item selection); its wall stays selected as context. */
   selectDoor(id: DoorId | null): void {
     selectedDoorId = id;
     selectedWindowId = null;
+    selectedItemId = null;
+  },
+
+  get selectedItemId(): string | null {
+    return selectedItemId;
+  },
+  /** Selects a room item (or deselects), clearing every other selection. */
+  selectItem(id: string | null): void {
+    selectedItemId = id;
+    selectedWallId = null;
+    selectedWindowId = null;
+    selectedDoorId = null;
+  },
+
+  get libraryDrag(): LibraryDrag | null {
+    return libraryDrag;
+  },
+  /** An item kind is being dragged from the library panel onto the canvas. */
+  startLibraryDrag(kind: string, label: string): void {
+    libraryDrag = { kind, label };
+  },
+  cancelLibraryDrag(): void {
+    libraryDrag = null;
   },
 
   get error(): string | null {

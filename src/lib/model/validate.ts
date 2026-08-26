@@ -1,5 +1,6 @@
 import type { DoorMode, PlanDoc, WallDoor, WallWindow } from '../types';
 import { DOOR_MODES, MIN_DOOR_LENGTH, MIN_WINDOW_LENGTH } from '../types';
+import { catalogItem } from './catalog';
 import { dist } from '../geometry';
 
 function isRecord(v: unknown): v is Record<string, unknown> {
@@ -60,7 +61,12 @@ export function sanitizeDoc(data: unknown): PlanDoc | null {
         num(o.x) &&
         num(o.y)
       ) {
-        roomObjects[id] = { id, roomId: o.roomId, kind: o.kind, x: o.x, y: o.y };
+        // size/rotation are newer fields — fall back to catalog defaults
+        const cat = catalogItem(o.kind);
+        const w = num(o.w) && o.w > 0 ? o.w : cat.w;
+        const d = num(o.d) && o.d > 0 ? o.d : cat.d;
+        const rotation = num(o.rotation) ? ((o.rotation % 360) + 360) % 360 || 0 : 0;
+        roomObjects[id] = { id, roomId: o.roomId, kind: o.kind, x: o.x, y: o.y, w, d, rotation };
       }
     }
   }

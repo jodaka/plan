@@ -1,10 +1,11 @@
 <script lang="ts">
 import AngleArcs from '$lib/components/AngleArcs.svelte';
 import DoorView from '$lib/components/DoorView.svelte';
+import FurnitureView from '$lib/components/FurnitureView.svelte';
+import GapHints from '$lib/components/GapHints.svelte';
 import RoomView from '$lib/components/RoomView.svelte';
 import WallDims from '$lib/components/WallDims.svelte';
 import WallView from '$lib/components/WallView.svelte';
-import GapHints from '$lib/components/GapHints.svelte';
 import WindowView from '$lib/components/WindowView.svelte';
 import {
   addPt,
@@ -12,26 +13,38 @@ import {
   axisAlign,
   dist,
   fmtCm,
+  itemCorners,
   mul,
+  polygonContainsPoint,
+  polygonsIntersect,
   type Pt,
+  ptsBBox,
+  rotatePt,
   snap,
+  snapItemCenter,
   snapPt,
   sub,
   unit,
   vectorAngleDeg,
+  type SnapSegment,
+  shrinkPolygon,
   type WallEndNeighbor,
   wallCorners,
 } from '$lib/geometry';
 import {
+  addRoomItem,
   addWall,
   docBBox,
   findJointNear,
   MIN_WALL_LENGTH,
+  moveItem,
   moveJoint,
   moveRoom,
   resizeDoor,
+  resizeItem,
   resizeWindow,
   roomLoopJoints,
+  rotateItem,
   setDoorOffset,
   setWindowOffset,
   violatedOpeningFloors,
@@ -39,6 +52,7 @@ import {
   wallsAtJoint,
   openingGapBounds,
 } from '$lib/model/ops';
+import { catalogItem, catalogLabel } from '$lib/model/catalog';
 import { findRooms, type Room } from '$lib/model/rooms';
 import { plan } from '$lib/stores/plan.svelte';
 import { ui } from '$lib/stores/ui.svelte';
@@ -49,6 +63,7 @@ import {
   MIN_WINDOW_LENGTH,
   type Joint,
   type JointId,
+  type RoomObject,
   type WallDoor,
   type WallId,
   type WallWindow,
@@ -103,6 +118,28 @@ interface RoomDrag {
   start: Pt;
 }
 let roomDrag: RoomDrag | null = null;
+
+// item gestures: drafts drive rendering (position/size/rotation), itemDrag is
+// handler-only bookkeeping. Overlap tints and validity recompute live.
+interface ItemDraft {
+  x: number;
+  y: number;
+  w: number;
+  d: number;
+  rotation: number;
+}
+let itemDrafts = $state.raw<Record<string, ItemDraft>>({});
+type ItemDrag =
+  | { kind: 'move'; id: string; grabX: number; grabY: number }
+  | { kind: 'resize'; id: string; sx: 1 | -1; sy: 1 | -1; fixed: Pt; rotation: number }
+  | { kind: 'rotate'; id: string };
+let itemDrag: ItemDrag | null = null;
+
+// library drag: a catalog kind is being carried from the panel over the
+// canvas; the ghost follows the cursor until drop/escape
+let itemGhost = $state<{ sx: number; sy: number; w: number; d: number; overRoom: boolean; valid: boolean } | null>(
+  null,
+);
 
 function endDraw() {
   drawActive = false;
@@ -227,6 +264,96 @@ const renderDoors = $derived.by<(WallDoor & { a: Pt; b: Pt; t: number })[]>(() =
     out.push({ ...door, offset, length, a, b, t: w.thickness });
   }
   return out;
+});
+
+/** wall body rectangles (centerline ± t/2) for item-collision tests */
+const wallPolys = $derived.by<Pt[][]>(() => {
+  const out: Pt[][] = [];
+  for (const w of Object.values(plan.doc.walls)) {
+    const a = renderJoints[w.startJointId];
+    const b = renderJoints[w.endJointId];
+    if (!a || !b) continue;
+    const u = unit(sub(b, a));
+    const n = { x: -u.y, y: u.x };
+    const h = w.thickness / 2;
+    out.push([addPt(a, mul(n, h)), addPt(b, mul(n, h)), addPt(b, mul(n, -h)), addPt(a, mul(n, -h))]);
+  }
+  return out;
+});
+
+/** collision checks shrink polygons by a hair so exact-flush contact passes */
+const COLLISION_EPS = 0.01;
+
+interface RenderItem {
+  obj: RoomObject;
+  label: string;
+  corners: Pt[];
+  aabb: { minX: number; minY: number; maxX: number; maxY: number };
+  orphan: boolean;
+  /** intersects a wall or pokes out of its room — rejected on drop */
+  invalid: boolean;
+  /** overlaps a sibling item — allowed, but tinted red */
+  overlapping: boolean;
+}
+
+/** items merged with drag drafts; overlap + wall/room validity recomputed
+ * live so tints follow drags before anything is committed */
+const renderItems = $derived.by<RenderItem[]>(() => {
+  const roomByKey = new Map(rooms.map((r) => [r.key, r]));
+  const out: RenderItem[] = [];
+  for (const obj of Object.values(plan.doc.roomObjects)) {
+    const merged: RoomObject = { ...obj, ...(itemDrafts[obj.id] ?? {}) };
+    const raw = itemCorners(merged.x, merged.y, merged.w, merged.d, merged.rotation);
+    const corners = shrinkPolygon(raw, COLLISION_EPS);
+    const room = roomByKey.get(merged.roomId);
+    const hitsWall = wallPolys.some((wp) => polygonsIntersect(corners, wp));
+    const inside = !room || corners.every((c) => polygonContainsPoint(room.innerPts, c));
+    out.push({
+      obj: merged,
+      label: catalogLabel(merged.kind),
+      corners,
+      aabb: ptsBBox(raw),
+      orphan: !room,
+      invalid: hitsWall || !inside,
+      overlapping: false,
+    });
+  }
+  for (let i = 0; i < out.length; i++) {
+    for (let j = i + 1; j < out.length; j++) {
+      if (polygonsIntersect(out[i].corners, out[j].corners)) {
+        out[i].overlapping = true;
+        out[j].overlapping = true;
+      }
+    }
+  }
+  return out;
+});
+
+/** resize + rotate handles for the selected item, in the top layer */
+const itemHandles = $derived.by(() => {
+  const sel = ui.selectedItemId;
+  if (!sel) return [];
+  const view = renderItems.find((i) => i.obj.id === sel);
+  if (!view) return [];
+  return itemCorners(view.obj.x, view.obj.y, view.obj.w, view.obj.d, view.obj.rotation).map((p, corner) => ({
+    id: sel,
+    corner,
+    p,
+  }));
+});
+
+const rotateHandle = $derived.by(() => {
+  const sel = ui.selectedItemId;
+  if (!sel) return null;
+  const view = renderItems.find((i) => i.obj.id === sel);
+  if (!view) return null;
+  const { obj } = view;
+  const off = obj.d / 2 + 16 / viewport.scale;
+  return {
+    id: sel,
+    from: addPt({ x: obj.x, y: obj.y }, rotatePt({ x: 0, y: -obj.d / 2 }, obj.rotation)),
+    p: addPt({ x: obj.x, y: obj.y }, rotatePt({ x: 0, y: -off }, obj.rotation)),
+  };
 });
 
 /** resize handles for the selected opening(s), in the top layer (see §4 layering) */
@@ -695,6 +822,194 @@ function cancelRoomDrag() {
   drafts = {};
 }
 
+// --- item gestures (library drop, move, resize, rotate) -----------------------
+
+const findItemView = (id: string) => renderItems.find((i) => i.obj.id === id);
+
+/** wall faces of the item's room (axis-aligned edges only) as snap targets */
+function itemSnapWalls(view: RenderItem): SnapSegment[] {
+  const room = rooms.find((r) => r.key === view.obj.roomId);
+  if (!room) return [];
+  const segs: SnapSegment[] = [];
+  const p = room.innerPts;
+  for (let i = 0; i < p.length; i++) {
+    const a = p[i];
+    const b = p[(i + 1) % p.length];
+    if (Math.abs(a.x - b.x) < 1e-6)
+      segs.push({ axis: 'x', value: a.x, from: Math.min(a.y, b.y), to: Math.max(a.y, b.y) });
+    else if (Math.abs(a.y - b.y) < 1e-6)
+      segs.push({ axis: 'y', value: a.y, from: Math.min(a.x, b.x), to: Math.max(a.x, b.x) });
+  }
+  return segs;
+}
+
+function startItemMove(id: string, world: Pt) {
+  const view = findItemView(id);
+  if (!view) return;
+  ui.selectItem(id);
+  itemDrag = { kind: 'move', id, grabX: world.x - view.obj.x, grabY: world.y - view.obj.y };
+}
+
+function startItemResize(id: string, corner: number) {
+  const view = findItemView(id);
+  if (!view) return;
+  ui.selectItem(id);
+  const { obj } = view;
+  const sx: 1 | -1 = corner === 0 || corner === 3 ? -1 : 1;
+  const sy: 1 | -1 = corner === 0 || corner === 1 ? -1 : 1;
+  // the opposite corner stays fixed for the whole gesture
+  const fixed = addPt({ x: obj.x, y: obj.y }, rotatePt({ x: (-sx * obj.w) / 2, y: (-sy * obj.d) / 2 }, obj.rotation));
+  itemDrag = { kind: 'resize', id, sx, sy, fixed, rotation: obj.rotation };
+}
+
+function startItemRotate(id: string) {
+  const view = findItemView(id);
+  if (!view) return;
+  ui.selectItem(id);
+  itemDrag = { kind: 'rotate', id };
+}
+
+function applyItemDrag(world: Pt) {
+  if (!itemDrag) return;
+  const drag = itemDrag;
+  const view = findItemView(drag.id);
+  if (!view) {
+    cancelItemDrag();
+    return;
+  }
+  const obj = view.obj;
+  if (drag.kind === 'move') {
+    let nx = world.x - drag.grabX;
+    let ny = world.y - drag.grabY;
+    if (ui.snapEnabled) {
+      nx = snap(nx);
+      ny = snap(ny);
+    }
+    // edge/center snapping uses the rotated item's AABB
+    const aabb = ptsBBox(itemCorners(nx, ny, obj.w, obj.d, obj.rotation));
+    const snapped = snapItemCenter(
+      nx,
+      ny,
+      aabb.maxX - aabb.minX,
+      aabb.maxY - aabb.minY,
+      itemSnapWalls(view),
+      renderItems.filter((o) => o.obj.id !== drag.id).map((o) => o.aabb),
+      8 / viewport.scale,
+    );
+    itemDrafts = { ...itemDrafts, [drag.id]: { ...obj, x: snapped.x, y: snapped.y } };
+  } else if (drag.kind === 'resize') {
+    const lv = rotatePt(sub(world, drag.fixed), -drag.rotation);
+    const cat = catalogItem(obj.kind);
+    const nw = Math.max(cat.minW, drag.sx * lv.x);
+    const nd = Math.max(cat.minD, drag.sy * lv.y);
+    const c = addPt(drag.fixed, rotatePt({ x: (drag.sx * nw) / 2, y: (drag.sy * nd) / 2 }, drag.rotation));
+    itemDrafts = { ...itemDrafts, [drag.id]: { ...obj, x: c.x, y: c.y, w: nw, d: nd } };
+  } else {
+    const ang = vectorAngleDeg(sub(world, obj)) + 90;
+    const rotation = ui.snapEnabled ? Math.round(ang / 15) * 15 : ang;
+    itemDrafts = { ...itemDrafts, [drag.id]: { ...obj, rotation: ((rotation % 360) + 360) % 360 || 0 } };
+  }
+}
+
+function commitItemDrag() {
+  const drag = itemDrag;
+  itemDrag = null;
+  const view = drag && findItemView(drag.id);
+  if (!drag || !view) {
+    itemDrafts = {};
+    return;
+  }
+  const { obj, label, invalid } = view;
+  itemDrafts = {};
+  if (invalid) {
+    // walls/openings/room bounds are hard constraints — reject like floors do
+    ui.showError(`${label} can’t overlap walls or leave its room.`);
+    return;
+  }
+  if (drag.kind === 'move') plan.commit(`Move ${label}`, moveItem(plan.doc, obj.id, obj.x, obj.y));
+  else if (drag.kind === 'resize') plan.commit(`Resize ${label}`, resizeItem(plan.doc, obj.id, obj.w, obj.d));
+  else plan.commit(`Rotate ${label}`, rotateItem(plan.doc, obj.id, obj.rotation));
+}
+
+function cancelItemDrag() {
+  itemDrag = null;
+  itemDrafts = {};
+}
+
+// --- library drag (panel → canvas) ---------------------------------------------
+
+/** validity of a would-be drop at the current cursor position */
+function libraryDropValid(kind: string, world: Pt): { room: Room | null; valid: boolean } {
+  const room = rooms.find((r) => polygonContainsPoint(r.pts, world)) ?? null;
+  if (!room) return { room: null, valid: false };
+  const cat = catalogItem(kind);
+  const corners = shrinkPolygon(itemCorners(world.x, world.y, cat.w, cat.d, 0), COLLISION_EPS);
+  const valid =
+    corners.every((c) => polygonContainsPoint(room.innerPts, c)) &&
+    !wallPolys.some((wp) => polygonsIntersect(corners, wp));
+  return { room, valid };
+}
+
+// window-level listeners while a library item is being carried: the gesture
+// started on a panel element, so the canvas handlers never see it
+$effect(() => {
+  const drag = ui.libraryDrag;
+  if (!drag) return;
+  const onMove = (e: PointerEvent) => {
+    if (!svgEl) return;
+    const lp = localPt(e);
+    const world = viewport.toWorld(lp.x, lp.y);
+    const cat = catalogItem(drag.kind);
+    const { valid } = libraryDropValid(drag.kind, world);
+    itemGhost = {
+      sx: lp.x,
+      sy: lp.y,
+      w: cat.w,
+      d: cat.d,
+      overRoom: valid || !!rooms.find((r) => polygonContainsPoint(r.pts, world)),
+      valid,
+    };
+  };
+  const onUp = (e: PointerEvent) => {
+    const info = ui.libraryDrag;
+    ui.cancelLibraryDrag();
+    itemGhost = null;
+    if (!info || !svgEl) return;
+    const rect = svgEl.getBoundingClientRect();
+    if (e.clientX < rect.left || e.clientX > rect.right || e.clientY < rect.top || e.clientY > rect.bottom) return;
+    const worldRaw = viewport.toWorld(e.clientX - rect.left, e.clientY - rect.top);
+    const world = ui.snapEnabled ? { x: snap(worldRaw.x), y: snap(worldRaw.y) } : worldRaw;
+    const { room, valid } = libraryDropValid(info.kind, world);
+    if (!room) {
+      ui.showError('Drop items inside a room.');
+      return;
+    }
+    if (!valid) {
+      ui.showError(`${info.label} can’t overlap walls or leave its room.`);
+      return;
+    }
+    const res = addRoomItem(plan.doc, room.key, info.kind, world);
+    if (res.item) {
+      plan.commit(`Add ${info.label}`, res.doc);
+      ui.selectItem(res.item.id);
+    }
+  };
+  const onKey = (e: KeyboardEvent) => {
+    if (e.key === 'Escape') {
+      ui.cancelLibraryDrag();
+      itemGhost = null;
+    }
+  };
+  window.addEventListener('pointermove', onMove);
+  window.addEventListener('pointerup', onUp);
+  window.addEventListener('keydown', onKey);
+  return () => {
+    window.removeEventListener('pointermove', onMove);
+    window.removeEventListener('pointerup', onUp);
+    window.removeEventListener('keydown', onKey);
+  };
+});
+
 function onPointerDown(e: PointerEvent) {
   if (!svgEl || (panning && spaceHeld)) return;
   try {
@@ -726,6 +1041,8 @@ function onPointerDown(e: PointerEvent) {
       ? ('end' as const)
       : ('start' as const);
   const roomKeyHit = target.closest('[data-room-key]')?.getAttribute('data-room-key') ?? null;
+  const itemId = target.closest('[data-item-id]')?.getAttribute('data-item-id') ?? null;
+  const itemHandle = itemId ? (target.closest('[data-item-handle]')?.getAttribute('data-item-handle') ?? null) : null;
 
   if (ui.tool === 'draw') {
     const res = resolveDrawPoint(world);
@@ -747,6 +1064,13 @@ function onPointerDown(e: PointerEvent) {
   if (jointHit && plan.doc.joints[jointHit]) {
     dragJointId = jointHit;
     dragMoved = false;
+    return;
+  }
+  if (itemId && plan.doc.roomObjects[itemId]) {
+    // items render above walls/openings, so they get priority here
+    if (itemHandle === 'rotate') startItemRotate(itemId);
+    else if (itemHandle?.startsWith('resize:')) startItemResize(itemId, Number(itemHandle.split(':')[1]));
+    else startItemMove(itemId, world);
     return;
   }
   if (doorId && plan.doc.doors[doorId]) {
@@ -796,6 +1120,10 @@ function onPointerMove(e: PointerEvent) {
     applyRoomDrag(cursorWorld);
     return;
   }
+  if (itemDrag) {
+    applyItemDrag(cursorWorld);
+    return;
+  }
   if (dragJointId) {
     dragMoved = true;
     drafts = { ...drafts, [dragJointId]: resolveDragPoint(dragJointId, cursorWorld) };
@@ -817,6 +1145,10 @@ function onPointerUp(e: PointerEvent) {
   }
   if (roomDrag) {
     commitRoomDrag();
+    return;
+  }
+  if (itemDrag) {
+    commitItemDrag();
     return;
   }
   if (dragJointId) {
@@ -853,6 +1185,9 @@ function onKeyDown(e: KeyboardEvent) {
     endDraw();
     cancelOpenDrag();
     cancelRoomDrag();
+    cancelItemDrag();
+    ui.cancelLibraryDrag();
+    itemGhost = null;
   }
 }
 
@@ -944,6 +1279,23 @@ const cursorClass = $derived.by(() => {
           selected={dv.id === ui.selectedDoorId} />
       {/each}
 
+      <!-- room items live inside rooms; painted above walls/openings -->
+      {#each renderItems as iv (iv.obj.id)}
+        <FurnitureView
+          id={iv.obj.id}
+          kind={iv.obj.kind}
+          x={iv.obj.x}
+          y={iv.obj.y}
+          w={iv.obj.w}
+          d={iv.obj.d}
+          rotation={iv.obj.rotation}
+          scale={viewport.scale}
+          selected={iv.obj.id === ui.selectedItemId}
+          overlapping={iv.overlapping}
+          invalid={iv.invalid}
+          orphan={iv.orphan} />
+      {/each}
+
       <!-- joint dots: make connection points visible for closing chains -->
       {#each Object.values(renderJoints) as j (j.id)}
         <circle class="joint-dot" cx={j.x} cy={j.y} r={3 / viewport.scale} />
@@ -1008,6 +1360,35 @@ const cursorClass = $derived.by(() => {
           stroke-width={2 / viewport.scale} />
       {/each}
 
+      <!-- item handles: topmost — 4 resize corners + rotation lollipop -->
+      {#each itemHandles as hp (hp.corner)}
+        <circle
+          class="handle item-handle"
+          data-item-id={hp.id}
+          data-item-handle={`resize:${hp.corner}`}
+          cx={hp.p.x}
+          cy={hp.p.y}
+          r={5 / viewport.scale}
+          stroke-width={2 / viewport.scale} />
+      {/each}
+      {#if rotateHandle}
+        <line
+          class="rot-stem"
+          x1={rotateHandle.from.x}
+          y1={rotateHandle.from.y}
+          x2={rotateHandle.p.x}
+          y2={rotateHandle.p.y}
+          stroke-width={1 / viewport.scale} />
+        <circle
+          class="handle item-rotate-handle"
+          data-item-id={rotateHandle.id}
+          data-item-handle="rotate"
+          cx={rotateHandle.p.x}
+          cy={rotateHandle.p.y}
+          r={5 / viewport.scale}
+          stroke-width={2 / viewport.scale} />
+      {/if}
+
       {#if drawActive && anchor && previewEnd}
         <line
           x1={anchor.x}
@@ -1036,6 +1417,18 @@ const cursorClass = $derived.by(() => {
       <span class="length-label" style:left="{previewLabel.x}px" style:top="{previewLabel.y}px">
         {previewLabel.text}
       </span>
+    {/if}
+    {#if itemGhost && ui.libraryDrag}
+      <div
+        class="item-ghost"
+        class:invalid={!itemGhost.valid}
+        class:overroom={itemGhost.overRoom && itemGhost.valid}
+        style:left="{itemGhost.sx}px"
+        style:top="{itemGhost.sy}px"
+        style:width="{itemGhost.w * viewport.scale}px"
+        style:height="{itemGhost.d * viewport.scale}px">
+        {ui.libraryDrag.label}
+      </div>
     {/if}
   </div>
 
@@ -1102,6 +1495,33 @@ svg.canvas.cursor-grabbing {
   border-radius: 6px;
   padding: 2px 7px;
   white-space: nowrap;
+}
+.item-ghost {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  border: 2px dashed #64748b;
+  background: rgba(226, 232, 240, 0.5);
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  color: #475569;
+  pointer-events: none;
+  white-space: nowrap;
+}
+.item-ghost.overroom {
+  border-color: #16a34a;
+  background: rgba(220, 252, 231, 0.5);
+}
+.item-ghost.invalid {
+  border-color: #dc2626;
+  background: rgba(254, 226, 226, 0.6);
+  color: #b91c1c;
+}
+.rot-stem {
+  stroke: #2563eb;
+  pointer-events: none;
 }
 .banner {
   position: absolute;

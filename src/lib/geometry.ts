@@ -177,3 +177,202 @@ export function polygonCentroid(pts: Pt[]): Pt {
   }
   return { x: cx / (3 * sum), y: cy / (3 * sum) };
 }
+
+/** Rotates `p` around the origin by `deg` degrees (screen coords: positive = clockwise on screen). */
+export function rotatePt(p: Pt, deg: number): Pt {
+  const rad = (deg * Math.PI) / 180;
+  const cos = Math.cos(rad);
+  const sin = Math.sin(rad);
+  return { x: p.x * cos - p.y * sin, y: p.x * sin + p.y * cos };
+}
+
+/** The 4 corners of a `w`×`d` rectangle centered at (x, y), rotated by `deg`. */
+export function itemCorners(x: number, y: number, w: number, d: number, deg: number): [Pt, Pt, Pt, Pt] {
+  const hw = w / 2;
+  const hd = d / 2;
+  return (
+    [
+      { x: -hw, y: -hd },
+      { x: hw, y: -hd },
+      { x: hw, y: hd },
+      { x: -hw, y: hd },
+    ] as const
+  ).map((c) => addPt(rotatePt(c, deg), { x, y })) as [Pt, Pt, Pt, Pt];
+}
+
+/** Axis-aligned bounding box of the given points. */
+export function ptsBBox(pts: Pt[]): { minX: number; minY: number; maxX: number; maxY: number } {
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  for (const p of pts) {
+    if (p.x < minX) minX = p.x;
+    if (p.y < minY) minY = p.y;
+    if (p.x > maxX) maxX = p.x;
+    if (p.y > maxY) maxY = p.y;
+  }
+  return { minX, minY, maxX, maxY };
+}
+
+/** Even-odd ray-cast test. Points exactly on an edge count as inside (±1e-9 slack). */
+export function polygonContainsPoint(poly: Pt[], p: Pt): boolean {
+  let inside = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const a = poly[i];
+    const b = poly[j];
+    const onSegment =
+      Math.abs((b.y - a.y) * (p.x - a.x) - (b.x - a.x) * (p.y - a.y)) < 1e-9 &&
+      Math.min(a.x, b.x) - 1e-9 <= p.x &&
+      p.x <= Math.max(a.x, b.x) + 1e-9 &&
+      Math.min(a.y, b.y) - 1e-9 <= p.y &&
+      p.y <= Math.max(a.y, b.y) + 1e-9;
+    if (onSegment) return true;
+    if (a.y > p.y !== b.y > p.y && p.x < ((b.x - a.x) * (p.y - a.y)) / (b.y - a.y) + a.x) {
+      inside = !inside;
+    }
+  }
+  return inside;
+}
+
+/**
+ * Separating-axis test for two CONVEX polygons. Touching edges count as
+ * intersecting (gap ≤ 1e-9) — callers that want flush contact to pass shrink
+ * one polygon by a hair.
+ */ export function polygonsIntersect(a: Pt[], b: Pt[]): boolean {
+  if (a.length < 3 || b.length < 3) return false;
+  for (const poly of [a, b]) {
+    for (let i = 0; i < poly.length; i++) {
+      const p1 = poly[i];
+      const p2 = poly[(i + 1) % poly.length];
+      // edge normal = projection axis
+      const ax = -(p2.y - p1.y);
+      const ay = p2.x - p1.x;
+      const len = Math.hypot(ax, ay);
+      if (len < 1e-12) continue;
+      let aMin = Infinity;
+      let aMax = -Infinity;
+      let bMin = Infinity;
+      let bMax = -Infinity;
+      for (const p of a) {
+        const v = p.x * ax + p.y * ay;
+        if (v < aMin) aMin = v;
+        if (v > aMax) aMax = v;
+      }
+      for (const p of b) {
+        const v = p.x * ax + p.y * ay;
+        if (v < bMin) bMin = v;
+        if (v > bMax) bMax = v;
+      }
+      if (aMax - bMin < -1e-9 || bMax - aMin < -1e-9) return false;
+    }
+  }
+  return true;
+}
+
+/** Shrinks a convex polygon toward its centroid by `margin` cm on every side. */
+export function shrinkPolygon(poly: Pt[], margin: number): Pt[] {
+  const c = polygonCentroid(poly);
+  return poly.map((p) => {
+    const dx = p.x - c.x;
+    const dy = p.y - c.y;
+    const len = Math.hypot(dx, dy);
+    if (len < 1e-9) return { ...p };
+    const k = Math.max(0, (len - margin) / len);
+    return { x: c.x + dx * k, y: c.y + dy * k };
+  });
+}
+
+/** A fixed face/edge items can snap to: a line at `value` on `axis`, spanning from→to on the other axis. */
+export interface SnapSegment {
+  /** the axis the face is perpendicular to ('x' = vertical face at x = value) */
+  axis: 'x' | 'y';
+  /** face coordinate on that axis */
+  value: number;
+  /** extent of the face on the other axis */
+  from: number;
+  to: number;
+}
+
+/** An axis-aligned box another item can snap against (edges + center). */
+export interface SnapBox {
+  minX: number;
+  minY: number;
+  maxX: number;
+  maxY: number;
+}
+
+export interface SnapResult {
+  x: number;
+  y: number;
+}
+
+/**
+ * Snaps an item center (its rotated-item AABB is aabbW×aabbH around it) so
+ * that one of its AABB edges — or its center — aligns with a wall face or a
+ * sibling box's edge/center. Per axis, independently; a candidate only
+ * counts when the item's extent along the target's span overlaps it (within
+ * the threshold), so far-away faces don't attract. Walls win over siblings;
+ * the closest candidate per axis wins. Grid snapping is the caller's job.
+ */
+export function snapItemCenter(
+  x: number,
+  y: number,
+  aabbW: number,
+  aabbH: number,
+  walls: SnapSegment[],
+  siblings: SnapBox[],
+  threshold: number,
+): SnapResult {
+  const halfW = aabbW / 2;
+  const halfH = aabbH / 2;
+  let dx = 0;
+  let dy = 0;
+  let fx = Infinity;
+  let fy = Infinity;
+  const consider = (axis: 'x' | 'y', delta: number) => {
+    const d = Math.abs(delta);
+    if (d > threshold) return;
+    if (axis === 'x') {
+      if (d < fx) {
+        fx = d;
+        dx = delta;
+      }
+    } else if (d < fy) {
+      fy = d;
+      dy = delta;
+    }
+  };
+
+  for (const s of walls) {
+    const alongLo = s.axis === 'x' ? y - halfH : x - halfW;
+    const alongHi = s.axis === 'x' ? y + halfH : x + halfW;
+    if (alongHi < s.from - threshold || alongLo > s.to + threshold) continue;
+    const neg = s.axis === 'x' ? x - halfW : y - halfH;
+    const pos = s.axis === 'x' ? x + halfW : y + halfH;
+    const center = s.axis === 'x' ? x : y;
+    consider(s.axis, s.value - neg);
+    consider(s.axis, s.value - pos);
+    consider(s.axis, s.value - center);
+  }
+
+  for (const b of siblings) {
+    if (y + halfH >= b.minY - threshold && y - halfH <= b.maxY + threshold) {
+      consider('x', b.minX - (x - halfW));
+      consider('x', b.maxX - (x + halfW));
+      // flush adjacency: my left edge against their right, and vice versa
+      consider('x', b.maxX - (x - halfW));
+      consider('x', b.minX - (x + halfW));
+      consider('x', (b.minX + b.maxX) / 2 - x);
+    }
+    if (x + halfW >= b.minX - threshold && x - halfW <= b.maxX + threshold) {
+      consider('y', b.minY - (y - halfH));
+      consider('y', b.maxY - (y + halfH));
+      consider('y', b.maxY - (y - halfH));
+      consider('y', b.minY - (y + halfH));
+      consider('y', (b.minY + b.maxY) / 2 - y);
+    }
+  }
+
+  return { x: x + dx, y: y + dy };
+}

@@ -8,6 +8,8 @@ export interface Room {
   areaCm2: number;
   /** clear-floor area inside the walls' inner faces, cm² (≥ 0) */
   innerAreaCm2: number;
+  /** clear-floor polygon: the loop inset by half of each wall's thickness */
+  innerPts: Pt[];
   /** ids of the walls forming the loop */
   wallIds: WallId[];
   /**
@@ -103,10 +105,12 @@ export function findRooms(joints: PlanDoc['joints'], walls: PlanDoc['walls']): R
         const areaCm2 = shoelaceArea(pts);
         if (areaCm2 > MIN_AREA_CM2) {
           const wallIds = loop.map((e) => e.wallId);
+          const innerPts = innerPolygon(pts, edgeT);
           rooms.push({
             pts,
             areaCm2,
-            innerAreaCm2: innerArea(pts, edgeT),
+            innerAreaCm2: Math.max(0, shoelaceArea(innerPts)),
+            innerPts,
             wallIds,
             key: roomKey(wallIds),
           });
@@ -118,15 +122,16 @@ export function findRooms(joints: PlanDoc['joints'], walls: PlanDoc['walls']): R
 }
 
 /**
- * Clear-floor area: the centerline loop inset by half of each edge wall's
- * thickness (each wall's inner face is its axis shifted toward the room
- * interior; consecutive inner faces intersect at the inner corners). Handles
- * per-wall thicknesses and non-rectangular loops. Corners whose inset
- * intersection shoots far away (acute angles) and parallel/collinear face
- * lines (e.g. two collinear walls on one side) bevel to the averaged offset
- * points instead. Returns ≥ 0; walls overlapping the room away give 0.
+ * Clear-floor polygon: the centerline loop inset by half of each edge
+ * wall's thickness (each wall's inner face is its axis shifted toward the
+ * room interior; consecutive inner faces intersect at the inner corners).
+ * Handles per-wall thicknesses and non-rectangular loops. Corners whose
+ * inset intersection shoots far away (acute angles) and parallel/collinear
+ * face lines (e.g. two collinear walls on one side) bevel to the averaged
+ * offset points instead. Area (shoelace) can go negative for degenerate
+ * loops — clamp at the call site.
  */
-function innerArea(pts: Pt[], edgeThickness: number[]): number {
+export function innerPolygon(pts: Pt[], edgeThickness: number[]): Pt[] {
   const n = pts.length;
   const lines: { p: Pt; d: Pt }[] = [];
   const normals: Pt[] = [];
@@ -156,7 +161,7 @@ function innerArea(pts: Pt[], edgeThickness: number[]): number {
       inner.push(mul(addPt(o1, o2), 0.5));
     }
   }
-  return Math.max(0, shoelaceArea(inner));
+  return inner;
 }
 
 /**

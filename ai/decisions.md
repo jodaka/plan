@@ -419,3 +419,43 @@ doors before windows for the same reason.
 **Persistence**: same rules as windows (§16) — `PlanDoc.doors` is additive, version
 stays 1; `sanitizeDoc` culls doors with unknown walls, clamps spans, and normalizes
 unknown modes to `'none'`; docs without a `doors` field normalize to `{}`.
+
+## 18. Room items: catalog-driven furniture bound to derived rooms
+
+**Decision**: furniture lives in `doc.roomObjects` as `RoomObject { id, roomId, kind,
+x, y, w, d, rotation }` — center position, size along LOCAL axes, rotation in degrees.
+The shape is always a rectangle; per-kind looks (pillows, backrests, armrests, closet
+doors, corner-table round front) are drawn inside it by `FurnitureView.svelte`. The
+catalog (`model/catalog.ts`) is pure data — Bedroom (bed, double bed) + Living room
+(chair, sofa, table, corner table, closet) for v1; adding an item is one entry (+ one
+drawing case). `roomId` is the room's stable wall-set key (§15), so items survive
+joint moves/thickness edits and move with room drags (`moveRoom` translates them);
+when the room's loop breaks they are kept, orphaned, and render grayed until dropped
+into some room again (re-binding).
+
+**Collision rules** (as decided with the user): item–item overlap is ALLOWED and
+warned — a Canvas `$derived` runs pairwise SAT (`polygonsIntersect`) on the rotated
+corner polygons and both items tint red. Item–wall overlap and leaving the room are
+FORBIDDEN: walls collide as centerline ± t/2 rectangles (openings live inside the wall
+band, so one check covers walls/doors/windows); containment tests all four corners
+against the room's inner polygon (`Room.innerPts`, exposed from the §15 inset math).
+Violations tint red live and REJECT the gesture on release with an error toast — same
+pattern as opening floors. Collision polygons are shrunk by 0.01 cm (`COLLISION_EPS`)
+so exact-flush contact (the main snapping use case) is legal; SAT counts touching as
+intersecting.
+
+**Gestures**: drag from the library = window-level pointer listeners while
+`ui.libraryDrag` is set (the gesture starts on a panel element, so canvas handlers
+never see it) with a screen-space ghost div that turns red/green by validity; drop
+adds via `addRoomItem` and selects. Move = grab body, delta-snapped (grid first, then
+`snapItemCenter` against the room's axis-aligned inner faces and sibling AABBs —
+edge-to-edge, flush-adjacent and center candidates, 8 px/scale threshold, walls win).
+Resize = 4 corner handles in the top layer; the OPPOSITE corner stays fixed (local-
+frame math, catalog minimum clamps). Rotate = lollipop handle above the item,
+`atan2` + 90°, snapped to 15°. All three commit at gesture end as
+`Move/Resize/Rotate ${label}` and are REJECTED when invalid. Snapping uses the
+rotated item's AABB so it works at any angle.
+
+**Persistence**: additive like windows/doors — version stays 1; `sanitizeDoc` falls
+back to catalog defaults for missing/invalid w/d and normalizes rotation into
+[0, 360); unknown kinds keep a 60×60 fallback box (open-ended kind field, per §15).

@@ -1,7 +1,22 @@
 import { describe, expect, test } from 'bun:test';
-import { angleBetweenDeg, axisAlign, dist, snap, snapPt, wallAngleDeg, wallCorners } from '../src/lib/geometry';
 import {
-  addRoomObject,
+  angleBetweenDeg,
+  axisAlign,
+  dist,
+  itemCorners,
+  polygonContainsPoint,
+  polygonsIntersect,
+  snap,
+  snapItemCenter,
+  snapPt,
+  type SnapBox,
+  type SnapSegment,
+  wallAngleDeg,
+  wallCorners,
+} from '../src/lib/geometry';
+import { CATALOG, catalogItem } from '../src/lib/model/catalog';
+import {
+  addRoomItem,
   addWall,
   addDoor,
   addWindow,
@@ -14,11 +29,14 @@ import {
   findJointNear,
   MIN_WALL_LENGTH,
   moveJoint,
+  moveItem,
   moveRoom,
   openingGapBounds,
   resizeDoor,
+  resizeItem,
   resizeWindow,
   roomLoopJoints,
+  rotateItem,
   setDoorLength,
   setDoorOffset,
   setInnerLength,
@@ -769,15 +787,15 @@ describe('rooms', () => {
   test('moveRoom carries room-bound objects along, others stay', () => {
     const doc = boxDoc();
     const room = findRooms(doc.joints, doc.walls)[0];
-    const added = addRoomObject(doc, room.key, 'sofa', { x: 100, y: 100 });
+    const added = addRoomItem(doc, room.key, 'sofa', { x: 100, y: 100 });
     const otherKey = `${room.key}:other`;
-    const withTwo = addRoomObject(added.doc, otherKey, 'lamp', { x: 0, y: 0 });
+    const withTwo = addRoomItem(added.doc, otherKey, 'chair', { x: 0, y: 0 });
     const moved = moveRoom(withTwo.doc, room.wallIds, room.key, { x: 10, y: 10 });
     const objects = Object.values(moved.roomObjects);
     const sofa = objects.find((o) => o.kind === 'sofa')!;
-    const lamp = objects.find((o) => o.kind === 'lamp')!;
+    const chair = objects.find((o) => o.kind === 'chair')!;
     expect([sofa.x, sofa.y]).toEqual([110, 110]);
-    expect([lamp.x, lamp.y]).toEqual([0, 0]); // bound to another room key
+    expect([chair.x, chair.y]).toEqual([0, 0]); // bound to another room key
   });
 
   test('moveRoom refuses shared/unknown rooms and zero deltas', () => {
@@ -793,5 +811,133 @@ describe('rooms', () => {
     const corner = doc.joints[joints[0]];
     const attached = addWall(doc, { x: corner.x, y: corner.y }, { x: corner.x + 50, y: corner.y }, { attachTolCm: 0.01 }).doc;
     expect(moveRoom(attached, room.wallIds, room.key, { x: 5, y: 5 })).toBe(attached);
+  });
+});
+
+describe('items', () => {
+  test('addRoomItem applies catalog defaults and binds the room', () => {
+    const doc = boxDoc();
+    const room = findRooms(doc.joints, doc.walls)[0];
+    const { doc: d1, item } = addRoomItem(doc, room.key, 'bed', { x: 105, y: 105 });
+    expect(item).not.toBeNull();
+    expect(item!.roomId).toBe(room.key);
+    expect([item!.w, item!.d, item!.rotation]).toEqual([90, 200, 0]); // catalog defaults
+    expect(Object.keys(doc.roomObjects)).toHaveLength(0); // input untouched
+
+    const unknown = addRoomItem(d1, room.key, 'alien-thing', { x: 5, y: 5 }).item!;
+    expect([unknown.w, unknown.d]).toEqual([60, 60]); // fallback size
+  });
+
+  test('item ops: move, resize clamps to catalog minimum, rotate normalizes', () => {
+    let doc = boxDoc();
+    const room = findRooms(doc.joints, doc.walls)[0];
+    doc = addRoomItem(doc, room.key, 'bed', { x: 100, y: 100 }).doc;
+    const id = Object.keys(doc.roomObjects)[0];
+
+    const moved = moveItem(doc, id, 120, 80);
+    expect([moved.roomObjects[id].x, moved.roomObjects[id].y]).toEqual([120, 80]);
+    expect(moveItem(doc, id, Number.NaN, 0)).toBe(doc);
+    expect(moveItem(doc, 'nope', 0, 0)).toBe(doc);
+
+    const resized = resizeItem(doc, id, 30, 500);
+    expect([resized.roomObjects[id].w, resized.roomObjects[id].d]).toEqual([70, 500]); // minW=70 floor, no max
+    expect(resizeItem(doc, id, 90, 200)).toBe(doc); // no-op keeps identity
+
+    const rotated = rotateItem(doc, id, 450);
+    expect(rotated.roomObjects[id].rotation).toBe(90);
+    expect(rotateItem(rotated, id, 90)).toBe(rotated); // no-op keeps identity
+    expect(rotateItem(doc, id, -90).roomObjects[id].rotation).toBe(270);
+    expect(rotateItem(doc, id, -0).roomObjects[id].rotation).toBe(0);
+  });
+
+  test('sanitizeDoc fills item size/rotation defaults and normalizes rotation', () => {
+    const s = sanitizeDoc({
+      version: 1,
+      joints: {},
+      walls: {},
+      roomObjects: {
+        a: { roomId: 'r', kind: 'bed', x: 1, y: 2, rotation: 405 },
+        b: { roomId: 'r', kind: 'sofa', x: 1, y: 2, w: -5, d: 0, rotation: 'x' },
+      },
+    });
+    expect(s?.roomObjects.a).toMatchObject({ w: 90, d: 200, rotation: 45 });
+    expect(s?.roomObjects.b).toMatchObject({ w: 200, d: 90, rotation: 0 }); // catalog default, junk sizes replaced
+  });
+});
+
+describe('item geometry', () => {
+  test('itemCorners rotates around the center', () => {
+    expect(itemCorners(10, 10, 4, 2, 0)).toEqual([
+      { x: 8, y: 9 },
+      { x: 12, y: 9 },
+      { x: 12, y: 11 },
+      { x: 8, y: 11 },
+    ]);
+    const c = itemCorners(0, 0, 4, 2, 90);
+    // 90° clockwise (screen): +x axis maps to +y (floats — compare loosely)
+    expect(c[0].x).toBeCloseTo(1);
+    expect(c[0].y).toBeCloseTo(-2);
+    expect(c[1].x).toBeCloseTo(1);
+    expect(c[1].y).toBeCloseTo(2);
+  });
+
+  test('polygonsIntersect: rotated rectangles', () => {
+    const a = itemCorners(0, 0, 10, 10, 0);
+    const b = itemCorners(8, 0, 10, 10, 0); // overlaps a by 2
+    const far = itemCorners(100, 100, 10, 10, 0);
+    expect(polygonsIntersect(a, b)).toBe(true);
+    expect(polygonsIntersect(a, far)).toBe(false);
+    // rotated 45° cross: a plus-shape overlap
+    const r = itemCorners(0, 0, 10, 10, 45);
+    expect(polygonsIntersect(a, r)).toBe(true);
+    // touching edges count as intersecting (callers shrink by EPS for flush)
+    const touch = itemCorners(10, 0, 10, 10, 0);
+    expect(polygonsIntersect(a, touch)).toBe(true);
+  });
+
+  test('polygonContainsPoint: inside, outside, on-edge', () => {
+    const sq = [
+      { x: 0, y: 0 },
+      { x: 10, y: 0 },
+      { x: 10, y: 10 },
+      { x: 0, y: 10 },
+    ];
+    expect(polygonContainsPoint(sq, { x: 5, y: 5 })).toBe(true);
+    expect(polygonContainsPoint(sq, { x: 15, y: 5 })).toBe(false);
+    expect(polygonContainsPoint(sq, { x: 0, y: 5 })).toBe(true); // edge
+  });
+
+  test('snapItemCenter snaps to wall faces and sibling edges within threshold', () => {
+    // room inner faces: x=0, x=100, y=0, y=100
+    const walls: SnapSegment[] = [
+      { axis: 'x', value: 0, from: 0, to: 100 },
+      { axis: 'x', value: 100, from: 0, to: 100 },
+      { axis: 'y', value: 0, from: 0, to: 100 },
+      { axis: 'y', value: 100, from: 0, to: 100 },
+    ];
+    // 10×10 item near the left wall: left edge at 2 → snaps flush to 0
+    const s1 = snapItemCenter(7, 50, 10, 10, walls, [], 5);
+    expect([s1.x, s1.y]).toEqual([5, 50]);
+    // sibling edge: another box at [30..60]×[40..70]
+    const sibs: SnapBox[] = [{ minX: 30, minY: 40, maxX: 60, maxY: 70 }];
+    const s2 = snapItemCenter(66, 50, 10, 10, [], sibs, 4);
+    expect([s2.x, s2.y]).toEqual([65, 50]); // left edge flush to sibling right (60 + 5)
+    const s3 = snapItemCenter(50, 55, 10, 10, [], sibs, 5);
+    expect([s3.x, s3.y]).toEqual([55, 55]); // right edges flush; ties go to edge alignment over centers
+    // beyond threshold → untouched
+    const s4 = snapItemCenter(7, 50, 10, 10, walls, [], 1);
+    expect([s4.x, s4.y]).toEqual([7, 50]);
+  });
+
+  test('innerPolygon insets the box by half thickness', () => {
+    const doc = boxDoc();
+    const room = findRooms(doc.joints, doc.walls)[0];
+    expect(room.innerAreaCm2).toBeCloseTo(200 * 200);
+    const xs = room.innerPts.map((p) => p.x);
+    const ys = room.innerPts.map((p) => p.y);
+    expect(Math.min(...xs)).toBeCloseTo(5);
+    expect(Math.max(...xs)).toBeCloseTo(205);
+    expect(Math.min(...ys)).toBeCloseTo(5);
+    expect(Math.max(...ys)).toBeCloseTo(205);
   });
 });

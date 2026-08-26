@@ -21,21 +21,30 @@ export interface Wall {
 }
 
 /**
- * An entity bound to a room (furniture, door, …). Rooms themselves
- * are derived from the wall graph (see model/rooms.ts) — objects reference
- * them via the room's stable key so the binding survives joint moves,
- * thickness edits and undo/redo, and breaks only when the room's loop breaks.
+ * An item placed inside a room (furniture). Rooms themselves are derived
+ * from the wall graph (see model/rooms.ts) — items reference them via the
+ * room's stable key so the binding survives joint moves, thickness edits and
+ * undo/redo, and breaks (orphans) only when the room's loop breaks.
+ * Position is the item CENTER in cm; `w`×`d` is the size along its LOCAL
+ * axes (before rotation); `rotation` in degrees, normalized [0, 360).
+ * Shape is always a rectangle (decorative details are drawn inside it).
  */
 export interface RoomObject {
   id: RoomObjectId;
   /** stable key of the bound room (sorted wall ids of its loop — model/rooms.ts) */
   roomId: string;
-  /** open-ended for future entity types: 'furniture' | 'door' | 'window' | … */
+  /** catalog kind id: 'bed' | 'sofa' | … (model/catalog.ts) */
   kind: string;
-  /** world position, cm */
+  /** world position of the item center, cm */
   x: number;
-  /** world position, cm */
+  /** world position of the item center, cm */
   y: number;
+  /** size along the item's local x axis, cm */
+  w: number;
+  /** size along the item's local y axis, cm */
+  d: number;
+  /** rotation around the center, degrees, [0, 360) */
+  rotation: number;
 }
 
 /**

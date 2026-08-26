@@ -1,5 +1,6 @@
 <script lang="ts">
 import { dist, fmtCm, wallAngleDeg } from '$lib/geometry';
+import { CATALOG, catalogItem, catalogLabel } from '$lib/model/catalog';
 import {
   addDoor,
   addWindow,
@@ -9,6 +10,9 @@ import {
   deleteWindow,
   doorsOnWall,
   MIN_WALL_LENGTH,
+  removeRoomItem,
+  resizeItem,
+  rotateItem,
   setDoorLength,
   setInnerLength,
   setThickness,
@@ -26,6 +30,7 @@ import { MIN_DOOR_LENGTH, MIN_WINDOW_LENGTH, type DoorMode } from '$lib/types';
 const wall = $derived(ui.selectedWallId ? plan.doc.walls[ui.selectedWallId] : undefined);
 const win = $derived(ui.selectedWindowId ? plan.doc.windows[ui.selectedWindowId] : undefined);
 const door = $derived(ui.selectedDoorId ? plan.doc.doors[ui.selectedDoorId] : undefined);
+const item = $derived(ui.selectedItemId ? plan.doc.roomObjects[ui.selectedItemId] : undefined);
 const length = $derived(wall ? dist(plan.doc.joints[wall.startJointId], plan.doc.joints[wall.endJointId]) : 0);
 const angle = $derived(wall ? wallAngleDeg(plan.doc.joints[wall.startJointId], plan.doc.joints[wall.endJointId]) : 0);
 
@@ -135,7 +140,23 @@ function removeDoor() {
 function removeWindow() {
   if (!win) return;
   plan.commit('Delete window', deleteWindow(plan.doc, win.id));
-  ui.selectWindow(null); // falls back to the still-selected wall
+  ui.selectWindow(null);
+}
+
+function applyItemSize(w: number, d: number) {
+  if (!item || !Number.isFinite(w) || !Number.isFinite(d)) return;
+  plan.commit(`Resize ${catalogLabel(item.kind)}`, resizeItem(plan.doc, item.id, w, d));
+}
+
+function applyItemRotation(deg: number) {
+  if (!item || !Number.isFinite(deg)) return;
+  plan.commit(`Rotate ${catalogLabel(item.kind)}`, rotateItem(plan.doc, item.id, deg));
+}
+
+function removeItem() {
+  if (!item) return;
+  plan.commit(`Delete ${catalogLabel(item.kind)}`, removeRoomItem(plan.doc, item.id));
+  ui.selectItem(null);
 }
 
 function remove() {
@@ -170,107 +191,167 @@ function confirmMessage(roomCount: number, objectCount: number, winCount: number
 }
 </script>
 
-{#if wall}
-  {#key win?.id ?? door?.id ?? wall.id}
-    <aside class="panel">
-      {#if win}
-        <h3>Window</h3>
-        <label>
-          <span>Length, cm</span>
-          <input
-            type="number"
-            min={MIN_WINDOW_LENGTH}
-            step="1"
-            value={Math.round(win.length * 10) / 10}
-            onchange={(e) => applyWindowLength(e.currentTarget.valueAsNumber)}>
-        </label>
-        <p class="meta">Position: {fmtCm(win.offset)} cm from wall start</p>
-        <p class="meta">Drag a round handle on the canvas to resize.</p>
-        <button class="danger" onclick={removeWindow}>Delete window</button>
-      {:else if door}
-        <h3>Door</h3>
-        <label>
-          <span>Length, cm</span>
-          <input
-            type="number"
-            min={MIN_DOOR_LENGTH}
-            step="1"
-            value={Math.round(door.length * 10) / 10}
-            onchange={(e) => applyDoorLength(e.currentTarget.valueAsNumber)}>
-        </label>
-        <button onclick={toggleDoorMode} title="Cycle through all five swing modes">
-          Swing: {DOOR_MODE_LABELS[door.mode]}
-        </button>
-        <p class="meta">Position: {fmtCm(door.offset)} cm from wall start</p>
-        <p class="meta">Drag a round handle on the canvas to resize.</p>
-        <button class="danger" onclick={removeDoor}>Delete door</button>
-      {:else}
-        <h3>Wall</h3>
-        <label>
-          <span>Length (inner), cm</span>
-          <input
-            type="number"
-            min={dims ? Math.ceil(dims.minInner * 10) / 10 : 1}
-            step="1"
-            value={dims ? Math.round(dims.inner * 10) / 10 : 1}
-            onchange={(e) => applyLength(e.currentTarget.valueAsNumber)}>
-        </label>
-        <label>
-          <span>Thickness, cm</span>
-          <input
-            type="number"
-            min="1"
-            max="100"
-            step="1"
-            value={wall.thickness}
-            onchange={(e) => applyThickness(e.currentTarget.valueAsNumber)}>
-        </label>
-        {#if dims}
-          <p class="meta">Outer span: {fmtCm(dims.outer)} cm</p>
+<aside class="panel">
+  <details class="section" open>
+    <summary>Inspector</summary>
+    <div class="section-body">
+      {#key win?.id ?? door?.id ?? item?.id ?? wall?.id ?? 'none'}
+        {#if win}
+          <h3>Window</h3>
+          <label>
+            <span>Length, cm</span>
+            <input
+              type="number"
+              min={MIN_WINDOW_LENGTH}
+              step="1"
+              value={Math.round(win.length * 10) / 10}
+              onchange={(e) => applyWindowLength(e.currentTarget.valueAsNumber)}>
+          </label>
+          <p class="meta">Position: {fmtCm(win.offset)} cm from wall start</p>
+          <p class="meta">Drag a round handle on the canvas to resize.</p>
+          <button class="danger" onclick={removeWindow}>Delete window</button>
+        {:else if door}
+          <h3>Door</h3>
+          <label>
+            <span>Length, cm</span>
+            <input
+              type="number"
+              min={MIN_DOOR_LENGTH}
+              step="1"
+              value={Math.round(door.length * 10) / 10}
+              onchange={(e) => applyDoorLength(e.currentTarget.valueAsNumber)}>
+          </label>
+          <button onclick={toggleDoorMode} title="Cycle through all five swing modes">
+            Swing: {DOOR_MODE_LABELS[door.mode]}
+          </button>
+          <p class="meta">Position: {fmtCm(door.offset)} cm from wall start</p>
+          <p class="meta">Drag a round handle on the canvas to resize.</p>
+          <button class="danger" onclick={removeDoor}>Delete door</button>
+        {:else if item}
+          <h3>{catalogLabel(item.kind)}</h3>
+          <label>
+            <span>Width, cm</span>
+            <input
+              type="number"
+              min={catalogItem(item.kind).minW}
+              step="1"
+              value={Math.round(item.w * 10) / 10}
+              onchange={(e) => applyItemSize(e.currentTarget.valueAsNumber, item.d)}>
+          </label>
+          <label>
+            <span>Depth, cm</span>
+            <input
+              type="number"
+              min={catalogItem(item.kind).minD}
+              step="1"
+              value={Math.round(item.d * 10) / 10}
+              onchange={(e) => applyItemSize(item.w, e.currentTarget.valueAsNumber)}>
+          </label>
+          <label>
+            <span>Rotation, °</span>
+            <input
+              type="number"
+              min="0"
+              max="360"
+              step="15"
+              value={Math.round(item.rotation)}
+              onchange={(e) => applyItemRotation(e.currentTarget.valueAsNumber)}>
+          </label>
+          <p class="meta">Position: {fmtCm(item.x)} · {fmtCm(item.y)} cm</p>
+          <p class="meta">Drag to move — snaps to walls and other items.</p>
+          <button class="danger" onclick={removeItem}>Delete item</button>
+        {:else if wall}
+          <h3>Wall</h3>
+          <label>
+            <span>Length (inner), cm</span>
+            <input
+              type="number"
+              min={dims ? Math.ceil(dims.minInner * 10) / 10 : 1}
+              step="1"
+              value={dims ? Math.round(dims.inner * 10) / 10 : 1}
+              onchange={(e) => applyLength(e.currentTarget.valueAsNumber)}>
+          </label>
+          <label>
+            <span>Thickness, cm</span>
+            <input
+              type="number"
+              min="1"
+              max="100"
+              step="1"
+              value={wall.thickness}
+              onchange={(e) => applyThickness(e.currentTarget.valueAsNumber)}>
+          </label>
+          {#if dims}
+            <p class="meta">Outer span: {fmtCm(dims.outer)} cm</p>
+          {/if}
+          <p class="meta">
+            Orientation: {fmtCm(angle)}°{angle === 0
+							? ' · horizontal'
+							: angle === 90
+								? ' · vertical'
+								: ''}
+          </p>
+
+          <h3>Windows ({wallWins.length})</h3>
+          {#each wallWins as w, i (w.id)}
+            <button
+              class="win-row"
+              onclick={() => {
+                if (!wall) return;
+                ui.select(wall.id);
+                ui.selectWindow(w.id);
+              }}
+              title="Select this window">
+              Window {i + 1} · {fmtCm(w.length)} cm @ {fmtCm(w.offset)}
+            </button>
+          {/each}
+          <button onclick={addWindowToWall} disabled={!dims || dims.free < MIN_WINDOW_LENGTH}>Add window</button>
+
+          <h3>Doors ({wallDoors.length})</h3>
+          {#each wallDoors as d, i (d.id)}
+            <button
+              class="door-row"
+              onclick={() => {
+                if (!wall) return;
+                ui.select(wall.id);
+                ui.selectDoor(d.id);
+              }}
+              title="Select this door">
+              Door {i + 1} · {fmtCm(d.length)} cm @ {fmtCm(d.offset)}
+            </button>
+          {/each}
+          <button onclick={addDoorToWall} disabled={!dims || dims.free < MIN_DOOR_LENGTH}>Add door</button>
+
+          <button class="danger" onclick={remove}>Delete wall</button>
+        {:else}
+          <p class="meta">Select a wall, opening or item — or drag something in from the library below.</p>
         {/if}
-        <p class="meta">
-          Orientation: {fmtCm(angle)}°{angle === 0
-						? ' · horizontal'
-						: angle === 90
-							? ' · vertical'
-							: ''}
-        </p>
+      {/key}
+    </div>
+  </details>
 
-        <h3>Windows ({wallWins.length})</h3>
-        {#each wallWins as w, i (w.id)}
+  <details class="section" open>
+    <summary>Library</summary>
+    <div class="section-body">
+      {#each CATALOG as cat (cat.id)}
+        <h3>{cat.label}</h3>
+        {#each cat.items as it (it.kind)}
           <button
-            class="win-row"
-            onclick={() => {
-              if (!wall) return;
-              ui.select(wall.id);
-              ui.selectWindow(w.id);
+            class="lib-item"
+            onpointerdown={(e) => {
+              e.preventDefault();
+              ui.startLibraryDrag(it.kind, it.label);
             }}
-            title="Select this window">
-            Window {i + 1} · {fmtCm(w.length)} cm @ {fmtCm(w.offset)}
+            title="Drag onto a room">
+            <span>{it.label}</span>
+            <span class="dims">{it.w}×{it.d}</span>
           </button>
         {/each}
-        <button onclick={addWindowToWall} disabled={!dims || dims.free < MIN_WINDOW_LENGTH}>Add window</button>
-
-        <h3>Doors ({wallDoors.length})</h3>
-        {#each wallDoors as d, i (d.id)}
-          <button
-            class="door-row"
-            onclick={() => {
-              if (!wall) return;
-              ui.select(wall.id);
-              ui.selectDoor(d.id);
-            }}
-            title="Select this door">
-            Door {i + 1} · {fmtCm(d.length)} cm @ {fmtCm(d.offset)}
-          </button>
-        {/each}
-        <button onclick={addDoorToWall} disabled={!dims || dims.free < MIN_DOOR_LENGTH}>Add door</button>
-
-        <button class="danger" onclick={remove}>Delete wall</button>
-      {/if}
-    </aside>
-  {/key}
-{/if}
+      {/each}
+      <p class="meta">Drag an item into a room on the canvas.</p>
+    </div>
+  </details>
+</aside>
 
 <style>
 .panel {
@@ -278,14 +359,45 @@ function confirmMessage(roomCount: number, objectCount: number, winCount: number
   flex-shrink: 0;
   border-left: 1px solid #e2e8f0;
   background: #ffffff;
-  padding: 14px;
+  padding: 10px 14px 14px;
   display: flex;
   flex-direction: column;
   gap: 10px;
+  overflow-y: auto;
+}
+.section {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+summary {
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+  color: #334155;
+  user-select: none;
+  margin-bottom: 4px;
+}
+.section-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 6px;
 }
 h3 {
   margin: 0;
   font-size: 14px;
+}
+.lib-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 6px;
+}
+.lib-item .dims {
+  color: #94a3b8;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
 }
 label {
   display: flex;

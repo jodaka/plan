@@ -1,4 +1,5 @@
 import { dist, sub, unit, type Pt } from '../geometry';
+import { catalogItem } from './catalog';
 import {
   DEFAULT_DOOR_LENGTH,
   DEFAULT_THICKNESS,
@@ -246,26 +247,70 @@ export function deleteWall(doc: PlanDoc, wallId: WallId): PlanDoc {
   return copyDoc(doc, { joints, walls, windows, doors });
 }
 
-/** Adds an entity bound to the room with the given key. Returns null when the position is not finite. */
-export function addRoomObject(
+/** Adds a catalog item centered at `pos`, bound to the room with the given
+ * key. Size/rotation defaults come from the catalog; returns null for
+ * non-finite positions or empty room/kind. Placement validity (inside the
+ * room, no wall overlap) is the UI's job — ops stay pure. */
+export function addRoomItem(
   doc: PlanDoc,
   roomId: string,
   kind: string,
   pos: Pt,
-): { doc: PlanDoc; object: RoomObject | null } {
+): { doc: PlanDoc; item: RoomObject | null } {
   if (!Number.isFinite(pos.x) || !Number.isFinite(pos.y) || roomId === '' || kind === '') {
-    return { doc, object: null };
+    return { doc, item: null };
   }
-  const object: RoomObject = { id: newId(), roomId, kind, x: pos.x, y: pos.y };
-  const roomObjects = { ...doc.roomObjects, [object.id]: object };
-  return { doc: copyDoc(doc, { roomObjects }), object };
+  const cat = catalogItem(kind);
+  const item: RoomObject = {
+    id: newId(),
+    roomId,
+    kind,
+    x: pos.x,
+    y: pos.y,
+    w: cat.w,
+    d: cat.d,
+    rotation: 0,
+  };
+  const roomObjects = { ...doc.roomObjects, [item.id]: item };
+  return { doc: copyDoc(doc, { roomObjects }), item };
 }
 
-/** Removes a room-bound entity; no-op when the id is unknown. */
-export function removeRoomObject(doc: PlanDoc, objectId: string): PlanDoc {
-  if (!doc.roomObjects[objectId]) return doc;
+/** Removes a room item; no-op when the id is unknown. */
+export function removeRoomItem(doc: PlanDoc, itemId: string): PlanDoc {
+  if (!doc.roomObjects[itemId]) return doc;
   const roomObjects = { ...doc.roomObjects };
-  delete roomObjects[objectId];
+  delete roomObjects[itemId];
+  return copyDoc(doc, { roomObjects });
+}
+
+/** Moves an item's center; no-op for unknown ids / non-finite coordinates. */
+export function moveItem(doc: PlanDoc, itemId: string, x: number, y: number): PlanDoc {
+  const it = doc.roomObjects[itemId];
+  if (!it || !Number.isFinite(x) || !Number.isFinite(y)) return doc;
+  if (it.x === x && it.y === y) return doc;
+  const roomObjects = { ...doc.roomObjects, [itemId]: { ...it, x, y } };
+  return copyDoc(doc, { roomObjects });
+}
+
+/** Sets an item's size, clamped to its catalog minimum; no-op otherwise. */
+export function resizeItem(doc: PlanDoc, itemId: string, w: number, d: number): PlanDoc {
+  const it = doc.roomObjects[itemId];
+  if (!it || !Number.isFinite(w) || !Number.isFinite(d)) return doc;
+  const cat = catalogItem(it.kind);
+  const nw = Math.max(cat.minW, w);
+  const nd = Math.max(cat.minD, d);
+  if (it.w === nw && it.d === nd) return doc;
+  const roomObjects = { ...doc.roomObjects, [itemId]: { ...it, w: nw, d: nd } };
+  return copyDoc(doc, { roomObjects });
+}
+
+/** Sets an item's rotation, normalized into [0, 360); no-op otherwise. */
+export function rotateItem(doc: PlanDoc, itemId: string, deg: number): PlanDoc {
+  const it = doc.roomObjects[itemId];
+  if (!it || !Number.isFinite(deg)) return doc;
+  const rotation = ((deg % 360) + 360) % 360 || 0; // also normalizes -0
+  if (it.rotation === rotation) return doc;
+  const roomObjects = { ...doc.roomObjects, [itemId]: { ...it, rotation } };
   return copyDoc(doc, { roomObjects });
 }
 

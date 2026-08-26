@@ -59,9 +59,7 @@ function onKeydown(e: KeyboardEvent) {
   </header>
   <main>
     <Canvas />
-    {#if ui.selectedWallId}
-      <InspectorPanel />
-    {/if}
+    <InspectorPanel />
   </main>
 </div>
 
