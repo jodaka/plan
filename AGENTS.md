@@ -85,7 +85,8 @@ bun test           # unit tests (bun:test, tests/ directory)
 - Room-bound entities: `doc.roomObjects` (furniture, keyed by the room's stable
   wall-set key) — deleting a wall that belongs to a room asks for confirmation first
   (it would destroy the room and orphan its objects; objects are kept, never culled)
-- Undo/redo (Ctrl/Cmd+Z, Ctrl+Shift+Z / Ctrl+Y, toolbar buttons) with labeled entries
+- Undo/redo (Ctrl/Cmd+Z, Ctrl+Shift+Z / Ctrl+Y, toolbar buttons) with labeled entries;
+  Delete/Backspace deletes the current selection (wall, window, door or item)
 - Persistence: debounced localStorage (`floorplanner.doc.v1`), sanitized on load
 - Import/export (toolbar): JSON file `floorplan_<timestamp>.json` with metadata
   (`app`, `appVersion`, `exportedAt`, `doc`); import validates version metadata

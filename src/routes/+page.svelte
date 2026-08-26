@@ -2,7 +2,8 @@
 import Canvas from '$lib/components/Canvas.svelte';
 import InspectorPanel from '$lib/components/InspectorPanel.svelte';
 import Toolbar from '$lib/components/Toolbar.svelte';
-import { deleteWall, deleteWindow } from '$lib/model/ops';
+import { deleteDoor, deleteWall, deleteWindow, removeRoomItem } from '$lib/model/ops';
+import { catalogLabel } from '$lib/model/catalog';
 import { saveDoc } from '$lib/model/storage';
 import { plan } from '$lib/stores/plan.svelte';
 import { ui } from '$lib/stores/ui.svelte';
@@ -22,6 +23,19 @@ function deleteSelected() {
   if (winId && plan.doc.windows[winId]) {
     plan.commit('Delete window', deleteWindow(plan.doc, winId));
     ui.selectWindow(null); // falls back to the still-selected wall
+    return;
+  }
+  const doorId = ui.selectedDoorId;
+  if (doorId && plan.doc.doors[doorId]) {
+    plan.commit('Delete door', deleteDoor(plan.doc, doorId));
+    ui.selectDoor(null); // falls back to the still-selected wall
+    return;
+  }
+  const itemId = ui.selectedItemId;
+  const item = itemId ? plan.doc.roomObjects[itemId] : undefined;
+  if (item) {
+    plan.commit(`Delete ${catalogLabel(item.kind)}`, removeRoomItem(plan.doc, item.id));
+    ui.selectItem(null);
     return;
   }
   const id = ui.selectedWallId;
