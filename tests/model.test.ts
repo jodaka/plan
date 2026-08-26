@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { angleBetweenDeg, axisAlign, dist, snap, snapPt, wallAngleDeg, wallCorners } from '../src/lib/geometry';
 import {
+  addRoomObject,
   addWall,
   addDoor,
   addWindow,
@@ -13,8 +14,11 @@ import {
   findJointNear,
   MIN_WALL_LENGTH,
   moveJoint,
+  moveRoom,
+  openingGapBounds,
   resizeDoor,
   resizeWindow,
+  roomLoopJoints,
   setDoorLength,
   setDoorOffset,
   setInnerLength,
@@ -28,9 +32,9 @@ import {
   wallWindowSpanCm,
   doorsOnWall,
   windowsOnWall,
-  openingGapBounds,
 } from '../src/lib/model/ops';
 import { sanitizeDoc } from '../src/lib/model/validate';
+import { findRooms } from '../src/lib/model/rooms';
 import type { DoorMode } from '../src/lib/types';
 
 /** 210×210 centerline box, all walls t=10 → every inner span is 200. */
@@ -711,5 +715,83 @@ describe('doors', () => {
     const raw = { version: 1, joints: base.joints, walls: base.walls, roomObjects: {}, windows: {} };
     const doc = sanitizeDoc(raw)!;
     expect(doc.doors).toEqual({});
+  });
+});
+
+describe('rooms', () => {
+  test('roomLoopJoints lists loop corners; shared corners make it null', () => {
+    const doc = boxDoc();
+    const room = findRooms(doc.joints, doc.walls)[0];
+    const joints = roomLoopJoints(doc, room.wallIds)!;
+    expect(joints).toHaveLength(4);
+    for (const jid of joints) {
+      // every joint is one of the box corners
+      expect(Object.keys(doc.joints)).toContain(jid);
+    }
+
+    // attach an outside wall at one corner → not movable
+    const corner = doc.joints[joints[0]];
+    const attached = addWall(doc, { x: corner.x, y: corner.y }, { x: corner.x + 50, y: corner.y + 50 }, { attachTolCm: 0.01 }).doc;
+    expect(roomLoopJoints(attached, room.wallIds)).toBeNull();
+  });
+
+  test('moveRoom translates the whole loop rigidly', () => {
+    const doc = boxDoc();
+    const room = findRooms(doc.joints, doc.walls)[0];
+    const before = room.wallIds.map((id) => {
+      const w = doc.walls[id];
+      const a = doc.joints[w.startJointId];
+      const b = doc.joints[w.endJointId];
+      return dist(a, b);
+    });
+
+    const moved = moveRoom(doc, room.wallIds, room.key, { x: 30, y: -15 });
+    const after = room.wallIds.map((id) => {
+      const w = moved.walls[id];
+      const a = moved.joints[w.startJointId];
+      const b = moved.joints[w.endJointId];
+      return dist(a, b);
+    });
+    expect(after).toEqual(before); // rigid: all lengths preserved
+
+    // every joint shifted by exactly the delta
+    for (const [jid, j] of Object.entries(moved.joints)) {
+      const o = doc.joints[jid];
+      expect([j.x - o.x, j.y - o.y]).toEqual([30, -15]);
+    }
+
+    // original doc untouched (immutability)
+    expect(doc.joints).not.toBe(moved.joints);
+    const first = doc.joints[room.wallIds[0] && doc.walls[room.wallIds[0]].startJointId];
+    expect(moved.joints[doc.walls[room.wallIds[0]].startJointId].x).toBe(first.x + 30);
+  });
+
+  test('moveRoom carries room-bound objects along, others stay', () => {
+    const doc = boxDoc();
+    const room = findRooms(doc.joints, doc.walls)[0];
+    const added = addRoomObject(doc, room.key, 'sofa', { x: 100, y: 100 });
+    const otherKey = `${room.key}:other`;
+    const withTwo = addRoomObject(added.doc, otherKey, 'lamp', { x: 0, y: 0 });
+    const moved = moveRoom(withTwo.doc, room.wallIds, room.key, { x: 10, y: 10 });
+    const objects = Object.values(moved.roomObjects);
+    const sofa = objects.find((o) => o.kind === 'sofa')!;
+    const lamp = objects.find((o) => o.kind === 'lamp')!;
+    expect([sofa.x, sofa.y]).toEqual([110, 110]);
+    expect([lamp.x, lamp.y]).toEqual([0, 0]); // bound to another room key
+  });
+
+  test('moveRoom refuses shared/unknown rooms and zero deltas', () => {
+    const doc = boxDoc();
+    const room = findRooms(doc.joints, doc.walls)[0];
+    // zero delta → same reference (no junk history entries)
+    expect(moveRoom(doc, room.wallIds, room.key, { x: 0, y: 0 })).toBe(doc);
+    // unknown wall → same reference
+    expect(moveRoom(doc, ['nope'], room.key, { x: 5, y: 5 })).toBe(doc);
+
+    // attach an outside wall at a corner → moveRoom is a no-op
+    const joints = roomLoopJoints(doc, room.wallIds)!;
+    const corner = doc.joints[joints[0]];
+    const attached = addWall(doc, { x: corner.x, y: corner.y }, { x: corner.x + 50, y: corner.y }, { attachTolCm: 0.01 }).doc;
+    expect(moveRoom(attached, room.wallIds, room.key, { x: 5, y: 5 })).toBe(attached);
   });
 });

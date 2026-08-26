@@ -311,6 +311,19 @@ drag the polygon and its area follow the cursor live, before any commit.
 the wall via SVG `rotate(angle cx cy)`, normalized to (−90°, 90°] so numbers never render
 upside down on leftward walls.
 
+**Moving rooms**: the m² label doubles as a drag handle (`label-hit` rect in
+RoomView, `data-room-key` for hit-testing). Dragging translates ALL loop joints by one
+delta — a closed loop moved rigidly keeps every length/angle exact, so the §7 objection
+against whole-wall translation does not apply. Two guardrails keep it honest: (1)
+`roomLoopJoints` returns null when any loop corner is shared with a wall outside the
+room — such rooms are REJECTED with an error toast instead of silently stretching the
+outside walls; (2) the DELTA is snapped (not the positions), preserving the exact shape
+even over legacy fractional joints. Room-bound objects (`doc.roomObjects` matching the
+room's key) travel along — otherwise dragging a room would abandon its furniture.
+Preview reuses the joint-drag `drafts` machinery: setting drafts for all loop joints
+makes walls, openings, the room polygon and its label follow the cursor live; commit is
+one `moveRoom` op at gesture end ("Move room").
+
 ## 16. Windows are wall-bound openings, parameterized along the wall
 
 **Decision**: `WallWindow { id, wallId, offset, length }` in `doc.windows`. A window is

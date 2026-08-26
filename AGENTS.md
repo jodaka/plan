@@ -50,7 +50,9 @@ bun test           # unit tests (bun:test, tests/ directory)
 - Rooms: any closed wall figure is a room (derived, never persisted) — painted
   `rgb(250, 235, 215)` under the walls with the clear-floor area (inner m², inset by
   wall halves) at its centroid; deleting or moving walls updates/dissolves rooms
-  automatically
+  automatically; the m² label doubles as a drag handle — dragging it translates the
+  whole room rigidly (all loop joints + its room-bound objects), REJECTED with an
+  error toast when a room corner is attached to walls outside the room
 - Windows: "Add window" in the inspector places a default window on the selected wall
   (centered in the largest gap); windows are selectable, resizable by dragging their two
   round handles on canvas or via the inspector length field, and slidable by dragging
@@ -100,7 +102,7 @@ src/lib/
     WallView.svelte        # wall body + invisible fat hit-line (corner extension math)
     WindowView.svelte      # window frame + glass on its wall + invisible hit area
     DoorView.svelte        # door jamb frame + swing leaf/arc + invisible hit area
-    RoomView.svelte        # room polygon + m² label at centroid (pointer-events: none)
+    RoomView.svelte        # room polygon + m² label at centroid (label = room drag handle)
     WallDims.svelte        # outer/inner dimension lines for highlighted walls
     AngleArcs.svelte       # angle arcs at joints of highlighted walls
     Toolbar.svelte         # tools, snap/grid, zoom, undo/redo, import/export

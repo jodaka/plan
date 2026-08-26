@@ -28,8 +28,10 @@ import {
   findJointNear,
   MIN_WALL_LENGTH,
   moveJoint,
+  moveRoom,
   resizeDoor,
   resizeWindow,
+  roomLoopJoints,
   setDoorOffset,
   setWindowOffset,
   violatedOpeningFloors,
@@ -37,7 +39,7 @@ import {
   wallsAtJoint,
   openingGapBounds,
 } from '$lib/model/ops';
-import { findRooms } from '$lib/model/rooms';
+import { findRooms, type Room } from '$lib/model/rooms';
 import { plan } from '$lib/stores/plan.svelte';
 import { ui } from '$lib/stores/ui.svelte';
 import { viewport } from '$lib/stores/viewport.svelte';
@@ -90,6 +92,17 @@ let openDrag: OpenDrag | null = null;
 // gesture state NOT used by rendering
 let dragMoved = false;
 let fitted = false;
+
+// room drag: the m² label is the handle; drafts drive the live preview (the
+// whole room follows via renderJoints), roomDrag is handler-only bookkeeping
+interface RoomDrag {
+  key: string;
+  wallIds: WallId[];
+  /** joint positions at grab time — the delta is applied to these */
+  origins: Record<JointId, Pt>;
+  start: Pt;
+}
+let roomDrag: RoomDrag | null = null;
 
 function endDraw() {
   drawActive = false;
@@ -626,6 +639,62 @@ function cancelOpenDrag() {
   openDrafts = {};
 }
 
+// --- room drag ----------------------------------------------------------------
+
+function startRoomDrag(room: Room, world: Pt) {
+  const joints = roomLoopJoints(plan.doc, room.wallIds);
+  if (!joints) {
+    // a corner is shared with walls outside the room — moving would stretch
+    // them silently (§7); reshaping at the joints is the way to change these
+    ui.showError('This room is attached to the rest of the plan and can’t be moved as a whole.');
+    return;
+  }
+  ui.select(null);
+  const origins: Record<JointId, Pt> = {};
+  for (const jid of joints) {
+    const j = plan.doc.joints[jid];
+    if (j) origins[jid] = { x: j.x, y: j.y };
+  }
+  roomDrag = { key: room.key, wallIds: [...room.wallIds], origins, start: world };
+}
+
+function applyRoomDrag(world: Pt) {
+  if (!roomDrag) return;
+  // snap the DELTA (not the positions): the room keeps its exact shape even
+  // over legacy fractional joints (same rule as the old wall-body drag, §7)
+  const dx = ui.snapEnabled ? snap(world.x - roomDrag.start.x) : world.x - roomDrag.start.x;
+  const dy = ui.snapEnabled ? snap(world.y - roomDrag.start.y) : world.y - roomDrag.start.y;
+  const next: Drafts = {};
+  for (const [jid, p] of Object.entries(roomDrag.origins)) {
+    next[jid] = { x: p.x + dx, y: p.y + dy };
+  }
+  drafts = next;
+}
+
+function commitRoomDrag() {
+  const drag = roomDrag;
+  roomDrag = null;
+  const first = Object.entries(drafts)[0];
+  if (!drag || !first) {
+    drafts = {};
+    return;
+  }
+  const origin = drag.origins[first[0]];
+  const candidate = moveRoom(plan.doc, drag.wallIds, drag.key, {
+    x: first[1].x - origin.x,
+    y: first[1].y - origin.y,
+  });
+  drafts = {};
+  // moveRoom is a rigid translation — no opening floors can be violated; it
+  // returns the doc unchanged for non-movable rooms, and commit no-ops then
+  plan.commit('Move room', candidate);
+}
+
+function cancelRoomDrag() {
+  roomDrag = null;
+  drafts = {};
+}
+
 function onPointerDown(e: PointerEvent) {
   if (!svgEl || (panning && spaceHeld)) return;
   try {
@@ -656,6 +725,7 @@ function onPointerDown(e: PointerEvent) {
     doorId && target.closest('[data-door-handle]')?.getAttribute('data-door-handle') === 'end'
       ? ('end' as const)
       : ('start' as const);
+  const roomKeyHit = target.closest('[data-room-key]')?.getAttribute('data-room-key') ?? null;
 
   if (ui.tool === 'draw') {
     const res = resolveDrawPoint(world);
@@ -692,6 +762,13 @@ function onPointerDown(e: PointerEvent) {
     else startOpenSlide('window', winId, world);
     return;
   }
+  if (roomKeyHit) {
+    // the m² label doubles as the room's drag handle (rooms layer sits below
+    // walls/openings, so those keep priority on shared pixels)
+    const room = rooms.find((r) => r.key === roomKeyHit);
+    if (room) startRoomDrag(room, world);
+    return;
+  }
   if (wallHit && plan.doc.walls[wallHit]) {
     // walls are selected but not translatable: moving a whole wall would
     // silently change connected walls' lengths and angles (see decisions §7)
@@ -715,6 +792,10 @@ function onPointerMove(e: PointerEvent) {
     applyOpenDrag(cursorWorld);
     return;
   }
+  if (roomDrag) {
+    applyRoomDrag(cursorWorld);
+    return;
+  }
   if (dragJointId) {
     dragMoved = true;
     drafts = { ...drafts, [dragJointId]: resolveDragPoint(dragJointId, cursorWorld) };
@@ -732,6 +813,10 @@ function onPointerUp(e: PointerEvent) {
 
   if (openDrag) {
     commitOpenDrag();
+    return;
+  }
+  if (roomDrag) {
+    commitRoomDrag();
     return;
   }
   if (dragJointId) {
@@ -767,6 +852,7 @@ function onKeyDown(e: KeyboardEvent) {
   } else if (e.key === 'Escape') {
     endDraw();
     cancelOpenDrag();
+    cancelRoomDrag();
   }
 }
 
@@ -820,8 +906,9 @@ const cursorClass = $derived.by(() => {
       {/if}
 
       {#each rooms as room, i (i)}
-        <!-- label = clear-floor (inner) area: the usable m² inside the walls -->
-        <RoomView pts={room.pts} areaCm2={room.innerAreaCm2} scale={viewport.scale} />
+        <!-- label = clear-floor (inner) area: the usable m² inside the walls;
+             it doubles as the room's drag handle -->
+        <RoomView pts={room.pts} areaCm2={room.innerAreaCm2} scale={viewport.scale} roomKey={room.key} />
       {/each}
 
       {#each Object.values(plan.doc.walls) as wall (wall.id)}

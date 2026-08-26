@@ -269,6 +269,56 @@ export function removeRoomObject(doc: PlanDoc, objectId: string): PlanDoc {
   return copyDoc(doc, { roomObjects });
 }
 
+// --- rooms (derived state — see model/rooms.ts) ------------------------------
+
+/**
+ * Joints of the closed loop formed by `wallIds`; null when any of them is
+ * shared with a wall OUTSIDE the loop — translating such a room would
+ * silently stretch the outside walls (the exact deformation §7 forbids for
+ * single walls), so the room is not movable. Unknown walls also yield null.
+ */
+export function roomLoopJoints(doc: PlanDoc, wallIds: WallId[]): JointId[] | null {
+  const loop = new Set<JointId>();
+  for (const id of wallIds) {
+    const w = doc.walls[id];
+    if (!w) return null;
+    loop.add(w.startJointId);
+    loop.add(w.endJointId);
+  }
+  const members = new Set(wallIds);
+  for (const jid of loop) {
+    for (const w of wallsAtJoint(doc, jid)) {
+      if (!members.has(w.id)) return null;
+    }
+  }
+  return [...loop];
+}
+
+/**
+ * Moves a room: translates every joint of its wall loop — and every
+ * room-bound object attached to it (`roomKey`) — by `delta`. A closed loop
+ * translated rigidly keeps all wall lengths and angles exact, so openings
+ * and geometry cannot break. Returns the doc unchanged when the room is not
+ * movable (`roomLoopJoints`), a wall is unknown, or delta is zero.
+ */
+export function moveRoom(doc: PlanDoc, wallIds: WallId[], roomKeyStr: string, delta: Pt): PlanDoc {
+  const joints = roomLoopJoints(doc, wallIds);
+  if (!joints || (delta.x === 0 && delta.y === 0)) return doc;
+  const nextJoints = { ...doc.joints };
+  for (const jid of joints) {
+    const j = doc.joints[jid];
+    nextJoints[jid] = { ...j, x: j.x + delta.x, y: j.y + delta.y };
+  }
+  let roomObjects = doc.roomObjects;
+  const movedObjects = { ...doc.roomObjects };
+  for (const o of Object.values(doc.roomObjects)) {
+    if (o.roomId !== roomKeyStr) continue;
+    movedObjects[o.id] = { ...o, x: o.x + delta.x, y: o.y + delta.y };
+    roomObjects = movedObjects;
+  }
+  return copyDoc(doc, { joints: nextJoints, roomObjects });
+}
+
 // --- openings (windows + doors) ----------------------------------------------
 
 /** Centerline length of a wall, cm; 0 for unknown walls/joints. */
