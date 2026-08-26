@@ -377,32 +377,33 @@ export function wallWindowSpanCm(doc: PlanDoc, wallId: WallId): number {
   return sum;
 }
 
-export interface WindowGapBounds {
-  /** left gap: from this boundary (wall start or nearest left neighbor's edge) to the window */
+export interface OpeningGapBounds {
+  /** left gap: from this boundary (wall start or nearest left neighbor's edge) to the opening */
   leftFrom: number;
   winFrom: number;
   winTo: number;
-  /** right gap: from the window to this boundary (nearest right neighbor's edge or wall end) */
+  /** right gap: from the opening to this boundary (nearest right neighbor's edge or wall end) */
   rightTo: number;
 }
 
 /**
- * Gap boundaries around one window, cm from the wall start: the nearest
- * other-window edge on each side, falling back to the wall's INNER (clear)
- * span ends when the window has no neighbors there — `innerSpanCm` carries
- * them (centerline positions of the inner corners); default is the full
- * centerline (free ends need no correction). `all` may carry draft values
- * (canvas previews); overlapping windows are ignored (they never tighten
- * bounds), and boundaries never cross the window (no negative gaps when a
- * window sits in the corner region).
+ * Gap boundaries around one opening (window or door — both kinds share the
+ * wall axis, so pass every opening on the wall as `all`), cm from the wall
+ * start: the nearest other-opening edge on each side, falling back to the
+ * wall's INNER (clear) span ends when the opening has no neighbors there —
+ * `innerSpanCm` carries them (centerline positions of the inner corners);
+ * default is the full centerline (free ends need no correction). `all` may
+ * carry draft values (canvas previews); overlapping openings are ignored
+ * (they never tighten bounds), and boundaries never cross the opening (no
+ * negative gaps when it sits in the corner region).
  */
-export function windowGapBounds(
+export function openingGapBounds(
   all: WallWindow[],
   wallLenCm: number,
-  windowId: WindowId,
+  openingId: string,
   innerSpanCm?: { from: number; to: number },
-): WindowGapBounds | null {
-  const win = all.find((w) => w.id === windowId);
+): OpeningGapBounds | null {
+  const win = all.find((w) => w.id === openingId);
   if (!win || !(wallLenCm > 0)) return null;
   let leftFrom = innerSpanCm ? Math.min(innerSpanCm.from, wallLenCm) : 0;
   let rightTo = innerSpanCm ? Math.max(innerSpanCm.to, 0) : wallLenCm;

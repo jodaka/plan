@@ -46,7 +46,7 @@ const gaps = $derived.by<Gap[]>(() => [
 ]);
 </script>
 
-<g class="win-hints">
+<g class="gap-hints">
   {#each gaps as g, i (`${g.from}:${g.to}`)}
     {@const A = addPt(at(g.from), mul(n, gap))}
     {@const B = addPt(at(g.to), mul(n, gap))}
@@ -78,13 +78,13 @@ const gaps = $derived.by<Gap[]>(() => [
 </g>
 
 <style>
-.win-hints {
+.gap-hints {
   pointer-events: none;
 }
-.win-hints line {
+.gap-hints line {
   stroke: #d97706;
 }
-.win-hints text {
+.gap-hints text {
   fill: #92400e;
   stroke: #ffffff;
   paint-order: stroke;

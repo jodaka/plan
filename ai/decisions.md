@@ -342,16 +342,16 @@ top layer (same paint-order reasoning as §4's joint handles). Drag previews use
 re-clamps window offsets against the drafted joints so previews stay honest before the
 floor check rejects or commits.
 
-**Gap hints**: a selected window shows two amber dimension hints (WindowHints.svelte,
+**Gap hints**: a selected window shows two amber dimension hints (GapHints.svelte,
 top layer, `pointer-events: none`) measuring each side gap: from the window edge to the
-NEAREST other-window edge on that side, falling back to the wall's INNER (clear) span
+NEAREST other-opening edge on that side, falling back to the wall's INNER (clear) span
 ends — the centerline positions of the inner corners (joint extensions), not the
-joints — when the window has no neighbors there (`windowGapBounds` in ops.ts — pure,
+joints — when the window has no neighbors there (`openingGapBounds` in ops.ts — pure,
 draft-aware so hints follow drags live; boundaries never cross the window, so a window
 parked in the corner region shows 0 rather than a negative gap). They use the WallDims
 visual language (offset line + end ticks + white-halo label, rotated parallel to the
 wall) in amber so they never read as wall dims; the offset side is the wall's outer
-side (same normal rule as §5).
+side (same normal rule as §5). Doors reuse the exact same component and math — see §17.
 
 **Persistence**: `PlanDoc.windows` is additive — version stays 1; `sanitizeDoc` culls
 windows with unknown walls and clamps survivors back into their wall span, so old saves
@@ -380,10 +380,9 @@ doors.
 named as they read on a left-to-right horizontal wall — the FIRST letter picks the
 cross-wall side the leaf opens toward (`t` = −normal = up, `b` = +normal = down), the
 SECOND the hinge jamb along the wall axis (`l` = start edge, `r` = end edge). Modes are
-relative
-to the wall axis so they survive joint moves and wall reshaping. The inspector button
-cycles `tl → tr → br → bl → none` (clockwise rotation order, feels like spinning the
-swing) via `cycleDoorMode`; undo label "Change door swing".
+relative to the wall axis so they survive joint moves and wall reshaping. The inspector
+button cycles `tl → tr → br → bl → none` (clockwise rotation order, feels like spinning
+the swing) via `cycleDoorMode`; undo label "Change door swing".
 
 **Rendering** (`DoorView.svelte`): warm palette (#a16207/#b45309/#d97706) vs the
 window's blue glass — the classic plan symbol: jamb-frame quad, leaf line standing
@@ -391,6 +390,13 @@ perpendicular to the wall at the hinge jamb, dashed quarter-circle arc back to t
 other jamb, tiny hinge dot. `'none'` renders just the threshold quad. Arc sweep flag:
 positive z of `(tip−hinge) × (other−hinge)` ⇒ SVG sweep 1 (y-down screen space:
 positive cross = increasing screen angle). Selection outline is amber, not blue.
+
+**Gap hints**: doors reuse the window hints verbatim — the component was renamed to
+`GapHints.svelte` (it never was window-specific) and `windowGapBounds` to
+`openingGapBounds`; Canvas computes one `selectedOpeningHints` for whichever opening
+kind is selected, passing ALL openings on the wall as neighbors (both kinds share the
+axis, so a door's gap runs to the next window too). Same amber styling, same inner-span
+fallbacks, same outer-side rule.
 
 **Layering**: doors paint after ALL walls AND above windows (§4 order updated), so
 their hit areas win where openings would ever overlap; door handles join window

@@ -28,7 +28,7 @@ import {
   wallWindowSpanCm,
   doorsOnWall,
   windowsOnWall,
-  windowGapBounds,
+  openingGapBounds,
 } from '../src/lib/model/ops';
 import { sanitizeDoc } from '../src/lib/model/validate';
 import type { DoorMode } from '../src/lib/types';
@@ -481,12 +481,12 @@ describe('windows', () => {
     expect(kept.offset).toBe(50); // clamped flush to the end
   });
 
-  test('windowGapBounds: lone window measures to the wall ends', () => {
+  test('openingGapBounds: lone window measures to the wall ends', () => {
     let doc = addWall(emptyDoc(), { x: 0, y: 0 }, { x: 400, y: 0 }).doc;
     const wallId = Object.keys(doc.walls)[0];
     doc = addWindow(doc, wallId).doc; // [150..250]
     const win = windowsOnWall(doc, wallId)[0];
-    expect(windowGapBounds(Object.values(doc.windows), 400, win.id)).toEqual({
+    expect(openingGapBounds(Object.values(doc.windows), 400, win.id)).toEqual({
       leftFrom: 0,
       winFrom: 150,
       winTo: 250,
@@ -494,7 +494,7 @@ describe('windows', () => {
     });
   });
 
-  test('windowGapBounds: nearest neighbor edges tighten the gaps', () => {
+  test('openingGapBounds: nearest neighbor edges tighten the gaps', () => {
     let doc = addWall(emptyDoc(), { x: 0, y: 0 }, { x: 500, y: 0 }).doc;
     const wallId = Object.keys(doc.walls)[0];
     doc = addWindow(doc, wallId).doc; // [200..300]
@@ -502,7 +502,7 @@ describe('windows', () => {
     doc = setWindowOffset(doc, mid.id, 0); // mid → [0..100]
     doc = addWindow(doc, wallId).doc; // right → centered in [100..500] → [250..350]
     const right = windowsOnWall(doc, wallId)[1];
-    expect(windowGapBounds(Object.values(doc.windows), 500, right.id)).toEqual({
+    expect(openingGapBounds(Object.values(doc.windows), 500, right.id)).toEqual({
       leftFrom: 100, // mid's end edge, not the wall start
       winFrom: 250,
       winTo: 350,
@@ -510,24 +510,24 @@ describe('windows', () => {
     });
   });
 
-  test('windowGapBounds: unknown window or zero-length wall → null', () => {
+  test('openingGapBounds: unknown window or zero-length wall → null', () => {
     const doc = addWall(emptyDoc(), { x: 0, y: 0 }, { x: 100, y: 0 }).doc;
-    expect(windowGapBounds([], 100, 'nope')).toBeNull();
-    expect(windowGapBounds([], 0, 'nope')).toBeNull();
+    expect(openingGapBounds([], 100, 'nope')).toBeNull();
+    expect(openingGapBounds([], 0, 'nope')).toBeNull();
   });
 
-  test('windowGapBounds: wall-end fallbacks use the inner (clear) span', () => {
+  test('openingGapBounds: wall-end fallbacks use the inner (clear) span', () => {
     let doc = addWall(emptyDoc(), { x: 0, y: 0 }, { x: 400, y: 0 }).doc;
     const wallId = Object.keys(doc.walls)[0];
     doc = addWindow(doc, wallId).doc; // [150..250]
     const win = windowsOnWall(doc, wallId)[0];
     // room corner extensions of 5 cm per end → clear span [5..395]
-    const bounds = windowGapBounds(Object.values(doc.windows), 400, win.id, { from: 5, to: 395 });
+    const bounds = openingGapBounds(Object.values(doc.windows), 400, win.id, { from: 5, to: 395 });
     expect(bounds).toEqual({ leftFrom: 5, winFrom: 150, winTo: 250, rightTo: 395 });
     // neighbor edges still win over the inner span when they are nearer
     doc = addWindow(doc, wallId).doc; // [25..125] — centered in the left gap
     const left = windowsOnWall(doc, wallId)[0];
-    expect(windowGapBounds(Object.values(doc.windows), 400, win.id, { from: 5, to: 395 })).toEqual({
+    expect(openingGapBounds(Object.values(doc.windows), 400, win.id, { from: 5, to: 395 })).toEqual({
       leftFrom: 125,
       winFrom: 150,
       winTo: 250,
@@ -536,13 +536,13 @@ describe('windows', () => {
     expect(left.offset).toBe(25);
   });
 
-  test('windowGapBounds: window in the corner region never yields negative gaps', () => {
+  test('openingGapBounds: window in the corner region never yields negative gaps', () => {
     let doc = addWall(emptyDoc(), { x: 0, y: 0 }, { x: 400, y: 0 }).doc;
     const wallId = Object.keys(doc.walls)[0];
     doc = addWindow(doc, wallId).doc;
     const win = windowsOnWall(doc, wallId)[0];
     doc = setWindowOffset(doc, win.id, 2); // inside the 5 cm corner extension
-    const bounds = windowGapBounds(Object.values(doc.windows), 400, win.id, { from: 5, to: 395 });
+    const bounds = openingGapBounds(Object.values(doc.windows), 400, win.id, { from: 5, to: 395 });
     expect(bounds).toEqual({ leftFrom: 2, winFrom: 2, winTo: 102, rightTo: 395 }); // left gap clamps to 0
   });
 });
