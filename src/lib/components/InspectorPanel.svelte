@@ -1,5 +1,5 @@
 <script lang="ts">
-import { dist, fmtCm, wallAngleDeg } from '$lib/geometry';
+import { dist, fmtCm, fmtM2, wallAngleDeg } from '$lib/geometry';
 import { CATALOG, catalogItem, catalogLabel } from '$lib/model/catalog';
 import {
   addDoor,
@@ -11,6 +11,7 @@ import {
   doorsOnWall,
   MIN_WALL_LENGTH,
   removeRoomItem,
+  renameRoom,
   resizeItem,
   rotateItem,
   setDoorLength,
@@ -31,6 +32,11 @@ const wall = $derived(ui.selectedWallId ? plan.doc.walls[ui.selectedWallId] : un
 const win = $derived(ui.selectedWindowId ? plan.doc.windows[ui.selectedWindowId] : undefined);
 const door = $derived(ui.selectedDoorId ? plan.doc.doors[ui.selectedDoorId] : undefined);
 const item = $derived(ui.selectedItemId ? plan.doc.roomObjects[ui.selectedItemId] : undefined);
+const room = $derived.by(() => {
+  const key = ui.selectedRoomKey;
+  if (!key) return undefined;
+  return findRooms(plan.doc.joints, plan.doc.walls).find((r) => r.key === key);
+});
 const length = $derived(wall ? dist(plan.doc.joints[wall.startJointId], plan.doc.joints[wall.endJointId]) : 0);
 const angle = $derived(wall ? wallAngleDeg(plan.doc.joints[wall.startJointId], plan.doc.joints[wall.endJointId]) : 0);
 
@@ -159,6 +165,11 @@ function removeItem() {
   ui.selectItem(null);
 }
 
+function applyRoomName(name: string) {
+  if (!room) return;
+  plan.commit('Rename room', renameRoom(plan.doc, room.key, name));
+}
+
 function remove() {
   if (!wall) return;
   // destroying a room orphans its bound entities (furniture, …) — warn before
@@ -195,7 +206,7 @@ function confirmMessage(roomCount: number, objectCount: number, winCount: number
   <details class="section" open>
     <summary>Inspector</summary>
     <div class="section-body">
-      {#key win?.id ?? door?.id ?? item?.id ?? wall?.id ?? 'none'}
+      {#key win?.id ?? door?.id ?? item?.id ?? wall?.id ?? room?.key ?? 'none'}
         {#if win}
           <h3>Window</h3>
           <label>
@@ -323,8 +334,21 @@ function confirmMessage(roomCount: number, objectCount: number, winCount: number
           <button onclick={addDoorToWall} disabled={!dims || dims.free < MIN_DOOR_LENGTH}>Add door</button>
 
           <button class="danger" onclick={remove}>Delete wall</button>
+        {:else if room}
+          <h3>Room{plan.doc.roomNames[room.key] ? ` · ${plan.doc.roomNames[room.key]}` : ''}</h3>
+          <label>
+            <span>Name (optional)</span>
+            <input
+              type="text"
+              placeholder="e.g. Bedroom"
+              value={plan.doc.roomNames[room.key] ?? ''}
+              onchange={(e) => applyRoomName(e.currentTarget.value)}>
+          </label>
+          <p class="meta">Area (clear floor): {fmtM2(room.innerAreaCm2)} m²</p>
+          <p class="meta">{room.wallIds.length} walls · {fmtM2(room.areaCm2)} m² along centerlines</p>
+          <p class="meta">Drag the m² label on the canvas to move this room.</p>
         {:else}
-          <p class="meta">Select a wall, opening or item — or drag something in from the library below.</p>
+          <p class="meta">Select a wall, opening, item or room — or drag something in from the library below.</p>
         {/if}
       {/key}
     </div>

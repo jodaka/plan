@@ -14,6 +14,7 @@ let selectedWallId = $state<WallId | null>(null);
 let selectedWindowId = $state<WindowId | null>(null);
 let selectedDoorId = $state<DoorId | null>(null);
 let selectedItemId = $state<string | null>(null);
+let selectedRoomKey = $state<string | null>(null);
 let libraryDrag = $state<LibraryDrag | null>(null);
 
 let errorMsg = $state<string | null>(null);
@@ -45,12 +46,13 @@ export const ui = {
   get selectedWallId(): WallId | null {
     return selectedWallId;
   },
-  /** Selecting a wall always drops an opening/item selection (and vice versa below). */
+  /** Selecting a wall always drops an opening/item/room selection (and vice versa below). */
   select(wallId: WallId | null): void {
     selectedWallId = wallId;
     selectedWindowId = null;
     selectedDoorId = null;
     selectedItemId = null;
+    selectedRoomKey = null;
   },
 
   get selectedWindowId(): WindowId | null {
@@ -61,6 +63,7 @@ export const ui = {
     selectedWindowId = id;
     selectedDoorId = null;
     selectedItemId = null;
+    selectedRoomKey = null;
   },
 
   get selectedDoorId(): DoorId | null {
@@ -71,6 +74,7 @@ export const ui = {
     selectedDoorId = id;
     selectedWindowId = null;
     selectedItemId = null;
+    selectedRoomKey = null;
   },
 
   get selectedItemId(): string | null {
@@ -82,6 +86,19 @@ export const ui = {
     selectedWallId = null;
     selectedWindowId = null;
     selectedDoorId = null;
+    selectedRoomKey = null;
+  },
+
+  get selectedRoomKey(): string | null {
+    return selectedRoomKey;
+  },
+  /** Selects a room (by stable key), clearing every other selection; null deselects all. */
+  selectRoom(key: string | null): void {
+    selectedRoomKey = key;
+    selectedWallId = null;
+    selectedWindowId = null;
+    selectedDoorId = null;
+    selectedItemId = null;
   },
 
   get libraryDrag(): LibraryDrag | null {

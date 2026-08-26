@@ -776,7 +776,7 @@ function startRoomDrag(room: Room, world: Pt) {
     ui.showError('This room is attached to the rest of the plan and can’t be moved as a whole.');
     return;
   }
-  ui.select(null);
+  ui.selectRoom(room.key); // a click on the label selects; dragging moves
   const origins: Record<JointId, Pt> = {};
   for (const jid of joints) {
     const j = plan.doc.joints[jid];
@@ -1099,7 +1099,9 @@ function onPointerDown(e: PointerEvent) {
     ui.select(wallHit);
     return;
   }
-  ui.select(null);
+  // empty space: selecting a room when the click lands inside one, else deselect
+  const room = rooms.find((r) => polygonContainsPoint(r.pts, world));
+  ui.selectRoom(room ? room.key : null);
   endDraw();
 }
 

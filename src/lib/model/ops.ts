@@ -25,7 +25,7 @@ import {
 export const MIN_WALL_LENGTH = 1; // cm
 
 export function emptyDoc(): PlanDoc {
-  return { version: 1, joints: {}, walls: {}, roomObjects: {}, windows: {}, doors: {} };
+  return { version: 1, joints: {}, walls: {}, roomObjects: {}, windows: {}, doors: {}, roomNames: {} };
 }
 
 function newId(): string {
@@ -362,6 +362,23 @@ export function moveRoom(doc: PlanDoc, wallIds: WallId[], roomKeyStr: string, de
     roomObjects = movedObjects;
   }
   return copyDoc(doc, { joints: nextJoints, roomObjects });
+}
+
+/**
+ * Sets an optional user-facing name for the room with the given stable key
+ * (names live in `doc.roomNames`, so they survive undo/redo and even
+ * re-forming the same wall loop). An empty/whitespace name clears the entry.
+ */
+export function renameRoom(doc: PlanDoc, roomKeyStr: string, name: string): PlanDoc {
+  if (roomKeyStr === '') return doc;
+  const trimmed = name.trim();
+  const prev = doc.roomNames[roomKeyStr];
+  const next = trimmed === '' ? undefined : trimmed;
+  if (prev === next) return doc;
+  const roomNames = { ...doc.roomNames };
+  if (next === undefined) delete roomNames[roomKeyStr];
+  else roomNames[roomKeyStr] = next;
+  return copyDoc(doc, { roomNames });
 }
 
 // --- openings (windows + doors) ----------------------------------------------

@@ -52,7 +52,10 @@ bun test           # unit tests (bun:test, tests/ directory)
   wall halves) at its centroid; deleting or moving walls updates/dissolves rooms
   automatically; the m² label doubles as a drag handle — dragging it translates the
   whole room rigidly (all loop joints + its room-bound objects), REJECTED with an
-  error toast when a room corner is attached to walls outside the room
+  error toast when a room corner is attached to walls outside the room; clicking
+  empty space inside a room (or the label) selects it — the inspector shows the
+  clear-floor m² and an optional name (persisted in `doc.roomNames` by stable key,
+  inspector-only, survives the room being destroyed/redrawn with the same walls)
 - Windows: "Add window" in the inspector places a default window on the selected wall
   (centered in the largest gap); windows are selectable, resizable by dragging their two
   round handles on canvas or via the inspector length field, and slidable by dragging

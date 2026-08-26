@@ -106,5 +106,12 @@ export function sanitizeDoc(data: unknown): PlanDoc | null {
       doors[id] = door;
     }
   }
-  return { version: 1, joints, walls, roomObjects, windows, doors };
+  // optional room names: non-empty strings only, keyed by stable room keys
+  const roomNames: PlanDoc['roomNames'] = {};
+  if (isRecord(data.roomNames)) {
+    for (const [key, name] of Object.entries(data.roomNames)) {
+      if (key !== '' && typeof name === 'string' && name.trim() !== '') roomNames[key] = name.trim();
+    }
+  }
+  return { version: 1, joints, walls, roomObjects, windows, doors, roomNames };
 }

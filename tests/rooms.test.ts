@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { fmtM2, polygonCentroid } from '../src/lib/geometry';
-import { addRoomItem, addWall, deleteWall, emptyDoc, moveJoint, removeRoomItem } from '../src/lib/model/ops';
+import { addRoomItem, addWall, deleteWall, emptyDoc, moveJoint, removeRoomItem, renameRoom } from '../src/lib/model/ops';
 import { findRooms, roomKey, roomObjectsIn, shoelaceArea } from '../src/lib/model/rooms';
 import { sanitizeDoc } from '../src/lib/model/validate';
 
@@ -354,5 +354,35 @@ describe('area/centroid helpers', () => {
     ]);
     expect(c.x).toBeCloseTo(50);
     expect(c.y).toBeCloseTo(25);
+  });
+});
+
+describe('room names & selection data', () => {
+  test('renameRoom sets, updates, clears; trims; identity no-ops', () => {
+    const doc = emptyDoc();
+    expect(doc.roomNames).toEqual({});
+
+    const named = renameRoom(doc, 'k1', '  Bedroom ');
+    expect(named.roomNames.k1).toBe('Bedroom');
+    expect(doc.roomNames).toEqual({}); // input untouched
+
+    const renamed = renameRoom(named, 'k1', 'Master');
+    expect(renamed.roomNames.k1).toBe('Master');
+    expect(renameRoom(renamed, 'k1', 'Master')).toBe(renamed); // no-op identity
+
+    const cleared = renameRoom(renamed, 'k1', '   ');
+    expect('k1' in cleared.roomNames).toBe(false);
+    expect(renameRoom(cleared, 'k1', '')).toBe(cleared); // clearing again = no-op
+    expect(renameRoom(doc, '', 'x')).toBe(doc); // empty key refused
+  });
+
+  test('sanitizeDoc keeps non-empty names, trims, drops junk', () => {
+    const s = sanitizeDoc({
+      version: 1,
+      joints: {},
+      walls: {},
+      roomNames: { keep: ' Bedroom ', empty: '   ', junk: 42, '': 'x' },
+    });
+    expect(s?.roomNames).toEqual({ keep: 'Bedroom' });
   });
 });

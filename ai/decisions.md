@@ -459,3 +459,12 @@ rotated item's AABB so it works at any angle.
 **Persistence**: additive like windows/doors — version stays 1; `sanitizeDoc` falls
 back to catalog defaults for missing/invalid w/d and normalizes rotation into
 [0, 360); unknown kinds keep a 60×60 fallback box (open-ended kind field, per §15).
+
+**Room selection & names**: clicking empty space inside a room (or its m² label)
+selects the room by stable key (`ui.selectedRoomKey`; exclusive with all other
+selections) — the inspector then shows the clear-floor m² and an optional name.
+Rooms are derived and have no ids, so names persist in `doc.roomNames` keyed by the
+same stable wall-set key: they survive undo/redo and even destroying + redrawing the
+exact same loop, and are kept (orphaned, harmless) when the room dies. Names are
+inspector-only by design — the canvas keeps showing the m² label. `renameRoom`
+trims, clears on empty input (deletes the key), and no-ops on identity.

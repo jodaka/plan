@@ -88,6 +88,9 @@ export interface PlanDoc {
   windows: Record<WindowId, WallWindow>;
   /** openings in walls; die with their wall */
   doors: Record<DoorId, WallDoor>;
+  /** optional user-facing room names, keyed by the room's stable key (§15) —
+   * shown in the inspector only; kept when the room is destroyed */
+  roomNames: Record<string, string>;
 }
 
 export const DEFAULT_THICKNESS = 10;
