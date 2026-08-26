@@ -342,6 +342,17 @@ top layer (same paint-order reasoning as §4's joint handles). Drag previews use
 re-clamps window offsets against the drafted joints so previews stay honest before the
 floor check rejects or commits.
 
+**Gap hints**: a selected window shows two amber dimension hints (WindowHints.svelte,
+top layer, `pointer-events: none`) measuring each side gap: from the window edge to the
+NEAREST other-window edge on that side, falling back to the wall's INNER (clear) span
+ends — the centerline positions of the inner corners (joint extensions), not the
+joints — when the window has no neighbors there (`windowGapBounds` in ops.ts — pure,
+draft-aware so hints follow drags live; boundaries never cross the window, so a window
+parked in the corner region shows 0 rather than a negative gap). They use the WallDims
+visual language (offset line + end ticks + white-halo label, rotated parallel to the
+wall) in amber so they never read as wall dims; the offset side is the wall's outer
+side (same normal rule as §5).
+
 **Persistence**: `PlanDoc.windows` is additive — version stays 1; `sanitizeDoc` culls
 windows with unknown walls and clamps survivors back into their wall span, so old saves
 (normalizing missing field → `{}`) and foreign files degrade safely.

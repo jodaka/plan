@@ -312,6 +312,46 @@ export function wallWindowSpanCm(doc: PlanDoc, wallId: WallId): number {
   return sum;
 }
 
+export interface WindowGapBounds {
+  /** left gap: from this boundary (wall start or nearest left neighbor's edge) to the window */
+  leftFrom: number;
+  winFrom: number;
+  winTo: number;
+  /** right gap: from the window to this boundary (nearest right neighbor's edge or wall end) */
+  rightTo: number;
+}
+
+/**
+ * Gap boundaries around one window, cm from the wall start: the nearest
+ * other-window edge on each side, falling back to the wall's INNER (clear)
+ * span ends when the window has no neighbors there — `innerSpanCm` carries
+ * them (centerline positions of the inner corners); default is the full
+ * centerline (free ends need no correction). `all` may carry draft values
+ * (canvas previews); overlapping windows are ignored (they never tighten
+ * bounds), and boundaries never cross the window (no negative gaps when a
+ * window sits in the corner region).
+ */
+export function windowGapBounds(
+  all: WallWindow[],
+  wallLenCm: number,
+  windowId: WindowId,
+  innerSpanCm?: { from: number; to: number },
+): WindowGapBounds | null {
+  const win = all.find((w) => w.id === windowId);
+  if (!win || !(wallLenCm > 0)) return null;
+  let leftFrom = innerSpanCm ? Math.min(innerSpanCm.from, wallLenCm) : 0;
+  let rightTo = innerSpanCm ? Math.max(innerSpanCm.to, 0) : wallLenCm;
+  for (const o of all) {
+    if (o.wallId !== win.wallId || o.id === win.id) continue;
+    const end = o.offset + o.length;
+    if (end <= win.offset + 1e-6 && end > leftFrom) leftFrom = end;
+    if (o.offset >= win.offset + win.length - 1e-6 && o.offset < rightTo) rightTo = o.offset;
+  }
+  leftFrom = Math.min(leftFrom, win.offset);
+  rightTo = Math.max(rightTo, win.offset + win.length);
+  return { leftFrom, winFrom: win.offset, winTo: win.offset + win.length, rightTo };
+}
+
 /**
  * Walls whose centerline length is below their total window length — i.e.
  * mutations that shrank a wall past its window floor and must NOT be

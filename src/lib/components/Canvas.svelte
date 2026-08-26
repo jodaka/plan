@@ -3,6 +3,7 @@ import AngleArcs from '$lib/components/AngleArcs.svelte';
 import RoomView from '$lib/components/RoomView.svelte';
 import WallDims from '$lib/components/WallDims.svelte';
 import WallView from '$lib/components/WallView.svelte';
+import WindowHints from '$lib/components/WindowHints.svelte';
 import WindowView from '$lib/components/WindowView.svelte';
 import {
   addPt,
@@ -31,6 +32,7 @@ import {
   violatedWindowFloors,
   wallWindowSpanCm,
   wallsAtJoint,
+  windowGapBounds,
 } from '$lib/model/ops';
 import { findRooms } from '$lib/model/rooms';
 import { plan } from '$lib/stores/plan.svelte';
@@ -198,6 +200,43 @@ const selectedWindowHandles = $derived.by(() => {
     { winId: sel, side: 'start' as const, p: addPt(win.a, mul(u, win.offset)) },
     { winId: sel, side: 'end' as const, p: addPt(win.a, mul(u, win.offset + win.length)) },
   ];
+});
+
+/** gap hints for the selected window: distance to the nearest other-window
+ * edge on each side, or to the wall's inner (clear) span ends when it has
+ * no neighbors there */
+const selectedWindowHints = $derived.by(() => {
+  const sel = ui.selectedWindowId;
+  if (!sel || !plan.doc.windows[sel]) return null;
+  const win = renderWindows.find((w) => w.id === sel);
+  if (!win) return null;
+  const wallLen = dist(win.a, win.b);
+  // measure to the inner faces, not the joints: the clear span starts one
+  // corner extension in (half of the thickest neighbor at that joint)
+  const exts = wallExts[win.wallId] ?? { start: 0, end: 0 };
+  const bounds = windowGapBounds(renderWindows, wallLen, sel, {
+    from: exts.start,
+    to: Math.max(exts.start, wallLen - exts.end),
+  });
+  if (!bounds) return null;
+  // draw on the wall's outer side — same rule as the wall dimension lines:
+  // connected walls extend into the room, so the outer side is away from them
+  const n0 = { x: -(win.b.y - win.a.y), y: win.b.x - win.a.x };
+  const l0 = Math.hypot(n0.x, n0.y) || 1;
+  n0.x /= l0;
+  n0.y /= l0;
+  const wall = plan.doc.walls[win.wallId];
+  const ja = renderJoints[wall.startJointId];
+  let flip = false;
+  if (ja) {
+    const nb = wallsAtJoint(plan.doc, wall.startJointId).find((o) => o.id !== wall.id);
+    if (nb) {
+      const oid = nb.startJointId === wall.startJointId ? nb.endJointId : nb.startJointId;
+      const o = plan.doc.joints[oid];
+      if (o && n0.x * (o.x - ja.x) + n0.y * (o.y - ja.y) > 0) flip = true;
+    }
+  }
+  return { win, bounds, flip };
 });
 
 /** walls rendered with full selection treatment: the selected wall — or,
@@ -755,6 +794,18 @@ const cursorClass = $derived.by(() => {
         <WallDims {...h.dims} />
       {/each}
       <AngleArcs arcs={selArcs} scale={viewport.scale} />
+
+      <!-- gap hints for the selected window: distance to the nearest
+           neighbor edge (or wall end) on each side -->
+      {#if selectedWindowHints}
+        <WindowHints
+          a={selectedWindowHints.win.a}
+          b={selectedWindowHints.win.b}
+          thickness={selectedWindowHints.win.t}
+          scale={viewport.scale}
+          {...selectedWindowHints.bounds}
+          flip={selectedWindowHints.flip} />
+      {/if}
 
       <!-- endpoint handles for the selected wall, above everything -->
       {#each handleJoints as j (j.id)}

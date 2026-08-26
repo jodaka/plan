@@ -54,7 +54,9 @@ bun test           # unit tests (bun:test, tests/ directory)
 - Windows: "Add window" in the inspector places a default window on the selected wall
   (centered in the largest gap); windows are selectable, resizable by dragging their two
   round handles on canvas or via the inspector length field, and slidable by dragging
-  their body; thickness always equals the host wall's; deleting a wall deletes its
+  their body; a selected window shows amber gap hints (distance to the nearest
+  other-window edge on each side, or to the wall ends when it has no neighbors);
+  thickness always equals the host wall's; deleting a wall deletes its
   windows; wall resizes keep window offsets while they fit (else clamp flush) and are
   REJECTED with an error toast when a wall would get shorter than its total window span
 - Room-bound entities: `doc.roomObjects` (furniture/doors/…, keyed by the room's stable
