@@ -5,10 +5,10 @@ import { plan } from '$lib/stores/plan.svelte';
 import { ui } from '$lib/stores/ui.svelte';
 import { viewport } from '$lib/stores/viewport.svelte';
 import { m } from '$lib/paraglide/messages';
-import { locales } from '$lib/paraglide/runtime';
-import { setLocale } from '$lib/paraglide/runtime';
+import { setLocale, getLocale } from '$lib/paraglide/runtime';
 import fitIcon from '$lib/assets/icons/fit.svg?raw';
 import snapToGridIcon from '$lib/assets/icons/snap-to-grid.svg?raw';
+import Toggle from './Toggle.svelte';
 
 let fileInput: HTMLInputElement | undefined = $state();
 
@@ -39,7 +39,7 @@ async function onFileChosen(e: Event) {
   ui.select(null);
   viewport.fit(docBBox(res.doc));
 }
-console.log(111, fitIcon);
+const lang = getLocale();
 </script>
 
 <div class="toolbar">
@@ -48,9 +48,16 @@ console.log(111, fitIcon);
   </div>
 
   <div class="group" role="group" aria-label="Lang">
-    {#each locales as locale (locale)}
-      <button onclick={() => setLocale(locale)}>{locale}</button>
-    {/each}
+    <Toggle
+      firstLabel="🇬🇧"
+      secondLabel="🇷🇺"
+      value={lang}
+      firstValue="en"
+      secondValue="ru"
+      onToggle={(newLang: 'en'|'ru') => setLocale(newLang)} />
+    <!--
+    <button class="toolbarIcon" class:active={lang === 'ru'} onclick={() => setLocale('ru')}>🇷🇺</button>
+    <button class="toolbarIcon" class:active={lang === 'en'} onclick={() => setLocale('en')}>🇬🇧</button> -->
   </div>
 
   <div class="group" role="group" aria-label="Tools">
