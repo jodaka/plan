@@ -8,6 +8,7 @@ import { m } from '$lib/paraglide/messages';
 import { locales } from '$lib/paraglide/runtime';
 import { setLocale } from '$lib/paraglide/runtime';
 import fitIcon from '$lib/assets/icons/fit.svg?raw';
+import snapToGridIcon from '$lib/assets/icons/snap-to-grid.svg?raw';
 
 let fileInput: HTMLInputElement | undefined = $state();
 
@@ -65,8 +66,12 @@ console.log(111, fitIcon);
   </div>
 
   <div class="group" role="group" aria-label="Snapping">
-    <button class:active={ui.snapEnabled} onclick={() => ui.toggleSnap()} title={m.toolbar__snapButtonTitle()}>
-      {m.toolbar__snapButton()}
+    <button
+      class="toolbarIcon"
+      class:active={ui.snapEnabled}
+      onclick={() => ui.toggleSnap()}
+      title={m.toolbar__snapButtonTitle()}>
+      {@html snapToGridIcon}
     </button>
     <button class:active={ui.showGrid} onclick={() => ui.toggleGrid()} title={m.toolbar__gridButtonTitle()}>
       {m.toolbar__gridButton()}
@@ -154,6 +159,11 @@ button:disabled {
   color: #94a3b8;
 }
 
+.toolbarIcon {
+  height: 28px;
+  padding: 2px;
+}
+
 .zoomGroup {
   position: absolute;
   bottom: 16px;
@@ -171,6 +181,7 @@ button:disabled {
   }
 
   .icon {
+    color: #333333;
     padding: 5px;
   }
 }
