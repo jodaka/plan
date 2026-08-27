@@ -1439,12 +1439,6 @@ const cursorClass = $derived.by(() => {
   {:else if Object.keys(plan.doc.walls).length === 0}
     <div class="banner">Press “Draw wall”, then click to place the first corner</div>
   {/if}
-
-  <div class="status">
-    {Math.round(cursorWorld.x)}
-    · {Math.round(cursorWorld.y)} cm &nbsp;|&nbsp;
-    {Math.round(viewport.zoomPct)}%
-  </div>
 </div>
 
 <style>
@@ -1536,16 +1530,5 @@ svg.canvas.cursor-grabbing {
   border-radius: 8px;
   padding: 6px 12px;
   white-space: nowrap;
-}
-.status {
-  position: absolute;
-  left: 12px;
-  bottom: 10px;
-  font-size: 12px;
-  color: #94a3b8;
-  background: rgba(255, 255, 255, 0.85);
-  padding: 2px 6px;
-  border-radius: 6px;
-  font-variant-numeric: tabular-nums;
 }
 </style>

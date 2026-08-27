@@ -39,6 +39,9 @@ async function onFileChosen(e: Event) {
 </script>
 
 <div class="toolbar">
+  <div class="group" role="group" aria-label="Logo">
+    <img class="logo" src="./plan.svg" width="150" height="100%" alt="У нас был какой-то план">
+  </div>
   <div class="group" role="group" aria-label="Tools">
     <button
       class:active={ui.tool === 'select'}
@@ -64,8 +67,8 @@ async function onFileChosen(e: Event) {
   </div>
 
   <div class="group" role="group" aria-label="File">
-    <button onclick={exportPlan} title="Download the plan as a JSON file">Export</button>
-    <button onclick={importClicked} title="Import a plan from a JSON file">Import</button>
+    <button onclick={exportPlan} title="Download the plan as a JSON file">Download</button>
+    <button onclick={importClicked} title="Open a plan from a JSON file">Open</button>
   </div>
 
   <div class="group" role="group" aria-label="History">
