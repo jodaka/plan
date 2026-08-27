@@ -27,6 +27,7 @@
         "noForEach": "off"
       },
       "a11y": {
+        "useValidLang": "warn",
         "useAnchorContent": "off",
         "noRedundantAlt": "off",
         "useButtonType": "off",

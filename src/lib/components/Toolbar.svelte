@@ -4,6 +4,10 @@ import { downloadPlan, parseImport } from '$lib/model/io';
 import { plan } from '$lib/stores/plan.svelte';
 import { ui } from '$lib/stores/ui.svelte';
 import { viewport } from '$lib/stores/viewport.svelte';
+import { m } from '$lib/paraglide/messages';
+import { locales } from '$lib/paraglide/runtime';
+import { setLocale } from '$lib/paraglide/runtime';
+import fitIcon from '$lib/assets/icons/fit.svg?raw';
 
 let fileInput: HTMLInputElement | undefined = $state();
 
@@ -13,9 +17,7 @@ function exportPlan() {
 
 function importClicked() {
   if (Object.keys(plan.doc.walls).length > 0) {
-    const saveFirst = window.confirm(
-      'The current plan contains walls.\nExport it first before importing another file?',
-    );
+    const saveFirst = window.confirm(m.toolbar__importClickConfirmation());
     if (saveFirst) downloadPlan(plan.doc);
   }
   fileInput?.click();
@@ -28,7 +30,7 @@ async function onFileChosen(e: Event) {
   if (!file) return;
   const res = parseImport(await file.text());
   if (!res.ok) {
-    window.alert(`Import failed: ${res.error}.`);
+    window.alert(m.toolbar__importFailed({ error: res.error }));
     return;
   }
   plan.commit('Import plan', res.doc);
@@ -36,59 +38,72 @@ async function onFileChosen(e: Event) {
   ui.select(null);
   viewport.fit(docBBox(res.doc));
 }
+console.log(111, fitIcon);
 </script>
 
 <div class="toolbar">
   <div class="group" role="group" aria-label="Logo">
-    <img class="logo" src="./plan.svg" width="150" height="100%" alt="У нас был какой-то план">
+    <img class="logo" src="./plan.svg" width="150" height="100%" alt={m.toolbar__logoAlt()}>
   </div>
+
+  <div class="group" role="group" aria-label="Lang">
+    {#each locales as locale (locale)}
+      <button onclick={() => setLocale(locale)}>{locale}</button>
+    {/each}
+  </div>
+
   <div class="group" role="group" aria-label="Tools">
     <button
       class:active={ui.tool === 'select'}
       onclick={() => ui.setTool('select')}
-      title="Select & move walls/joints (V)">
-      Select
+      title={m.toolbar__selectButtonTitle()}>
+      {m.toolbar__selectButton()}
     </button>
-    <button class:active={ui.tool === 'draw'} onclick={() => ui.setTool('draw')} title="Draw walls (D)">
-      Draw wall
+    <button class:active={ui.tool === 'draw'} onclick={() => ui.setTool('draw')} title={m.toolbar__drawButtonTitle()}>
+      {m.toolbar__drawButton()}
     </button>
   </div>
 
   <div class="group" role="group" aria-label="Snapping">
-    <button class:active={ui.snapEnabled} onclick={() => ui.toggleSnap()} title="Snap to 1 cm grid">Snap</button>
-    <button class:active={ui.showGrid} onclick={() => ui.toggleGrid()} title="Show grid">Grid</button>
-  </div>
-
-  <div class="group" role="group" aria-label="Zoom">
-    <button onclick={() => viewport.zoomCenter(0.8)} title="Zoom out">−</button>
-    <span class="pct">{Math.round(viewport.zoomPct)}%</span>
-    <button onclick={() => viewport.zoomCenter(1.25)} title="Zoom in">+</button>
-    <button onclick={() => viewport.fit(docBBox(plan.doc))} title="Fit plan in view">Fit</button>
+    <button class:active={ui.snapEnabled} onclick={() => ui.toggleSnap()} title={m.toolbar__snapButtonTitle()}>
+      {m.toolbar__snapButton()}
+    </button>
+    <button class:active={ui.showGrid} onclick={() => ui.toggleGrid()} title={m.toolbar__gridButtonTitle()}>
+      {m.toolbar__gridButton()}
+    </button>
   </div>
 
   <div class="group" role="group" aria-label="File">
-    <button onclick={exportPlan} title="Download the plan as a JSON file">Download</button>
-    <button onclick={importClicked} title="Open a plan from a JSON file">Open</button>
+    <button onclick={exportPlan} title={m.toolbar__downloadTitle()}>{m.toolbar__downloadButton()}</button>
+    <button onclick={importClicked} title={m.toolbar__openTitle()}>{m.toolbar__openButton()}</button>
   </div>
 
   <div class="group" role="group" aria-label="History">
     <button
       disabled={!plan.canUndo}
       onclick={() => plan.undo()}
-      title={plan.undoLabel ? `Undo: ${plan.undoLabel}` : 'Nothing to undo'}>
-      ↶ Undo
+      title={plan.undoLabel ? m.toolbar__undoTitle({ label: plan.undoLabel }) : m.toolbar__undoTitleEmpty()}>
+      {m.toolbar__undoButton()}
     </button>
     <button
       disabled={!plan.canRedo}
       onclick={() => plan.redo()}
-      title={plan.redoLabel ? `Redo: ${plan.redoLabel}` : 'Nothing to redo'}>
-      ↷ Redo
+      title={plan.redoLabel ? m.toolbar__redoTitle({ label: plan.redoLabel }) : m.toolbar__redoTitleEmpty()}>
+      {m.toolbar__redoButton()}
     </button>
   </div>
 
   <input bind:this={fileInput} type="file" accept=".json,application/json" hidden onchange={onFileChosen}>
 
-  <span class="hint">Space+drag = pan · wheel = zoom</span>
+  <span class="hint">{m.toolbar__hint()}</span>
+</div>
+<div class="zoomGroup">
+  <button onclick={() => viewport.zoomCenter(0.8)} title={m.toolbar__zoomOutTitle()}>−</button>
+  <span class="pct">{Math.round(viewport.zoomPct)}%</span>
+  <button onclick={() => viewport.zoomCenter(1.25)} title={m.toolbar__zoomInTitle()}>+</button>
+  <button class="icon" onclick={() => viewport.fit(docBBox(plan.doc))} title={m.toolbar__fitTitle()}>
+    {@html fitIcon}
+  </button>
 </div>
 
 <style>
@@ -137,5 +152,26 @@ button:disabled {
   margin-left: auto;
   font-size: 12px;
   color: #94a3b8;
+}
+
+.zoomGroup {
+  position: absolute;
+  bottom: 16px;
+  left: 16px;
+  display: flex;
+  flex-direction: column;
+  width: 36px;
+  gap: 8px;
+  align-items: center;
+
+  & button {
+    overflow: hidden;
+    width: 36px;
+    height: 30px;
+  }
+
+  .icon {
+    padding: 5px;
+  }
 }
 </style>
