@@ -1,6 +1,7 @@
 <script lang="ts">
 import { docBBox } from '$lib/model/ops';
 import { downloadPlan, parseImport } from '$lib/model/io';
+import { downloadSvg } from '$lib/model/svgExport';
 import { plan } from '$lib/stores/plan.svelte';
 import { ui } from '$lib/stores/ui.svelte';
 import { viewport } from '$lib/stores/viewport.svelte';
@@ -22,6 +23,10 @@ function importClicked() {
     if (saveFirst) downloadPlan(plan.doc);
   }
   fileInput?.click();
+}
+
+function svgExportClicker() {
+  downloadSvg(plan.doc);
 }
 
 async function onFileChosen(e: Event) {
@@ -85,6 +90,7 @@ const lang = getLocale();
   <div class="group" role="group" aria-label="File">
     <button onclick={exportPlan} title={m.toolbar__downloadTitle()}>{m.toolbar__downloadButton()}</button>
     <button onclick={importClicked} title={m.toolbar__openTitle()}>{m.toolbar__openButton()}</button>
+    <button onclick={svgExportClicker} title={m.toolbar__svgExportTitle()}>{m.toolbar__svgExportButton()}</button>
   </div>
 
   <div class="group" role="group" aria-label="History">

@@ -19,6 +19,8 @@
 	"toolbar__downloadTitle": "Download the plan as a JSON file",
 	"toolbar__openButton": "Open",
 	"toolbar__openTitle": "Open a plan from a JSON file",
+	"toolbar__svgExportTitle": "Download an complete SVG drawing",
+	"toolbar__svgExportButton": "Export SVG",
 	"toolbar__undoTitle": "Undo: {label}",
 	"toolbar__undoTitleEmpty": "Nothing to undo",
 	"toolbar__undoButton": "↶ Undo",

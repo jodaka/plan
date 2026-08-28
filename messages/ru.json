@@ -19,6 +19,8 @@
 	"toolbar__downloadTitle": "Скачать план в формате JSON",
 	"toolbar__openButton": "Открыть",
 	"toolbar__openTitle": "Открыть план из файла JSON",
+	"toolbar__svgExportTitle": "Скачать весь чертёж в формате SVG",
+	"toolbar__svgExportButton": "Скачать SVG",
 	"toolbar__undoTitle": "Отменить: {label}",
 	"toolbar__undoTitleEmpty": "Нечего отменять",
 	"toolbar__undoButton": "↶ Отменить",
