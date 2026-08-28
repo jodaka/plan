@@ -55,21 +55,18 @@ const lang = getLocale();
       firstValue="en"
       secondValue="ru"
       onToggle={(newLang: 'en'|'ru') => setLocale(newLang)} />
-    <!--
-    <button class="toolbarIcon" class:active={lang === 'ru'} onclick={() => setLocale('ru')}>🇷🇺</button>
-    <button class="toolbarIcon" class:active={lang === 'en'} onclick={() => setLocale('en')}>🇬🇧</button> -->
   </div>
 
   <div class="group" role="group" aria-label="Tools">
-    <button
-      class:active={ui.tool === 'select'}
-      onclick={() => ui.setTool('select')}
-      title={m.toolbar__selectButtonTitle()}>
-      {m.toolbar__selectButton()}
-    </button>
-    <button class:active={ui.tool === 'draw'} onclick={() => ui.setTool('draw')} title={m.toolbar__drawButtonTitle()}>
-      {m.toolbar__drawButton()}
-    </button>
+    <Toggle
+      firstLabel={m.toolbar__selectButton()}
+      firstTitle={m.toolbar__selectButtonTitle()}
+      firstValue="select"
+      secondLabel={m.toolbar__drawButton()}
+      secondTitle={m.toolbar__drawButtonTitle()}
+      secondValue="draw"
+      value={ui.tool}
+      onToggle={(newTool: 'select'|'draw') => ui.setTool(newTool)} />
   </div>
 
   <div class="group" role="group" aria-label="Snapping">

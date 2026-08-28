@@ -1,9 +1,28 @@
-<script lang="ts">
-let { value, firstValue, secondValue, firstLabel, secondLabel, onToggle } = $props();
+<script lang="ts" generics="T extends string">
+let {
+  value,
+  firstValue,
+  secondValue,
+  firstLabel,
+  secondLabel,
+  onToggle,
+  firstTitle = undefined,
+  secondTitle = undefined,
+}: {
+  value: T;
+  firstValue: T;
+  secondValue: T;
+  firstLabel: string;
+  secondLabel: string;
+  onToggle?: (value: T) => void;
+  firstTitle?: string;
+  secondTitle?: string;
+} = $props();
 
-function handleChange(event: any) {
+function handleChange(event: Event) {
+  const target = event.target as HTMLInputElement;
   if (typeof onToggle === 'function') {
-    onToggle(event.target.value);
+    onToggle(target.value as T);
   }
 }
 
@@ -18,7 +37,7 @@ const id = $props.id();
     value={firstValue}
     bind:group={value}
     onchange={handleChange}>
-  <label class="toggle__label" for="{id}-radio-one">{firstLabel}</label>
+  <label class="toggle__label" for="{id}-radio-one" title={firstTitle}>{firstLabel}</label>
   <input
     class="toggle__input"
     type="radio"
@@ -26,7 +45,7 @@ const id = $props.id();
     value={secondValue}
     bind:group={value}
     onchange={handleChange}>
-  <label class="toggle__label" for="{id}-radio-two">{secondLabel}</label>
+  <label class="toggle__label" for="{id}-radio-two" title={secondTitle}>{secondLabel}</label>
 </div>
 
 <style>
@@ -52,11 +71,13 @@ const id = $props.id();
 .toggle__label {
   background-color: #fff;
   color: rgba(0, 0, 0, 0.6);
-  width: 32px;
+  width: fit-content;
   height: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
+  font-size: 13px;
+  padding: 0 8px;
   box-shadow:
     inset 0 1px 2px rgba(0, 0, 0, 0.1),
     0 1px rgba(255, 255, 255, 0.1);

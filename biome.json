@@ -39,6 +39,12 @@
       }
     }
   },
+  "overrides": [
+    {
+      "includes": ["src/app.html"],
+      "linter": { "rules": { "a11y": { "useValidLang": "off" } } }
+    }
+  ],
   "javascript": {
     "formatter": {
       "quoteStyle": "single"
