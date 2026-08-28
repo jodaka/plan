@@ -513,3 +513,34 @@ Download is the same colon-free timestamp convention as JSON
 (`floorplan_<YYYY-MM-DD_HH-mm-ss local>.svg`) via Blob + object URL, with
 `typeof document/window` guards so bun test can import the module (same constraint
 as §12).
+
+## 20. i18n: Paraglide JS (en / ru)
+
+**Decision**: UI strings live in Paraglide JS v2 message catalogs — `messages/en.json`
+and `messages/ru.json` (key-aligned, flat), configured by `project.inlang/settings.json`
+(`baseLocale: 'en'`, locales `en` + `ru`, message-format plugin with path pattern
+`./messages/{locale}.json`). The `paraglideVitePlugin` (vite.config.ts) compiles them
+into `src/lib/paraglide/` (gitignored, `emitTsDeclarations`) at dev/build time —
+generated code, never hand-edited. Key conventions:
+
+- **Key naming**: flat keys namespaced by component with a double underscore
+  (`toolbar__selectButton`, `inspector__resizeDragHint`, …). Interpolation uses
+  `{param}` placeholders (`m.toolbar__importFailed({ error })`,
+  `m.toolbar__undoTitle({ label })`).
+- **Usage**: components import `m` from `$lib/paraglide/messages` and call messages
+  as FUNCTIONS at render time (`m.toolbar__fitTitle()`). No raw UI strings in markup.
+  The pure model layer stays string-free: `parseImport` returns English error text,
+  which the call site wraps in a localized template — only UI chrome is translated.
+- **Locale detection**: cookie strategy only (`PARAGLIDE_LOCALE`), falling back to
+  `baseLocale`. No URL or `preferredLanguage` strategy — the app is client-only and
+  the language is an explicit user choice via the toolbar 🇬🇧/🇷🇺 `Toggle`, which
+  calls `setLocale()`. That reloads the document by default (paraglide semantics),
+  so components can read `getLocale()` once at init; no reactive re-render is needed.
+- **SSR scaffolding**: `src/hooks.server.ts` runs `paraglideMiddleware` and injects
+  locale + text direction into `app.html` placeholders (`%paraglide.lang%` /
+  `%paraglide.dir%`); `src/hooks.ts` re-routes through `deLocalizeUrl` so localized
+  pathnames would resolve — harmless today (no URL strategy), ready if one is added.
+
+To add a string: append the key to BOTH `messages/*.json`, use `m.<key>()` in the
+component. To add a locale: new `messages/<locale>.json` + list it in
+`project.inlang/settings.json` + extend the Toolbar `Toggle`.

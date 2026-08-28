@@ -98,10 +98,20 @@ bun test           # unit tests (bun:test, tests/ directory)
   see `ai/decisions.md` §19)
 - All displayed lengths/angles are mm-precision (`fmtCm`); raw floats never rendered
 - Page is client-only (`export const ssr = false` in `src/routes/+page.ts`)
+- i18n: Paraglide JS (en/ru, `ai/decisions.md` §20) — UI strings in `messages/en.json`
+  + `messages/ru.json` (key-aligned, `component__key` naming, `{param}` interpolation),
+  used via `m.<key>()` from `$lib/paraglide/messages`; `src/lib/paraglide/` is
+  generated (gitignored); locale switched by the toolbar 🇬🇧/🇷🇺 toggle (cookie +
+  document reload)
 
 ## Architecture
 
 ```
+messages/                  # paraglide catalogs en.json / ru.json — UI strings live here
+project.inlang/            # paraglide project settings (locales, message format)
+src/
+  hooks.ts                 # client reroute: deLocalizeUrl (i18n URL-prefix stripping)
+  hooks.server.ts          # paraglide middleware: injects <html lang/dir> into app.html
 src/lib/
   types.ts                 # Joint, Wall, RoomObject, PlanDoc; thickness constants
   geometry.ts              # pure math: snap, angles, itemCorners/SAT/snap, fmtCm (unit = 1 cm)
