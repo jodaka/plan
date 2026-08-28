@@ -1,4 +1,5 @@
-import { itemCorners } from '../geometry';
+import { localRectPolys, transformPolys } from '../geometry';
+import { getItemDef } from '../items/registry';
 import type { PlanDoc } from '../types';
 
 const PX_PER_CM = 15;
@@ -56,13 +57,16 @@ export function downloadSvg(doc: PlanDoc): void {
     if (j.y > maxY) maxY = j.y;
   }
   for (const obj of Object.values(doc.roomObjects)) {
-    const corners = itemCorners(obj.x, obj.y, obj.w, obj.d, obj.rotation);
-    for (const p of corners) {
-      if (p.x < minX) minX = p.x;
-      if (p.y < minY) minY = p.y;
-      if (p.x > maxX) maxX = p.x;
-      if (p.y > maxY) maxY = p.y;
-    }
+    const def = getItemDef(obj.kind);
+    const local = def ? def.collisionShapes(obj.w, obj.d) : localRectPolys(obj.w, obj.d);
+    const polys = transformPolys(local, obj.x, obj.y, obj.rotation);
+    for (const poly of polys)
+      for (const p of poly) {
+        if (p.x < minX) minX = p.x;
+        if (p.y < minY) minY = p.y;
+        if (p.x > maxX) maxX = p.x;
+        if (p.y > maxY) maxY = p.y;
+      }
   }
   const hasContent = Number.isFinite(minX) && Number.isFinite(minY);
   if (hasContent) {

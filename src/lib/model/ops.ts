@@ -1,5 +1,5 @@
 import { dist, sub, unit, type Pt } from '../geometry';
-import { catalogItem } from './catalog';
+import { catalogItem, getItemDef } from '../items/registry';
 import {
   DEFAULT_DOOR_LENGTH,
   DEFAULT_THICKNESS,
@@ -292,13 +292,21 @@ export function moveItem(doc: PlanDoc, itemId: string, x: number, y: number): Pl
   return copyDoc(doc, { roomObjects });
 }
 
-/** Sets an item's size, clamped to its catalog minimum; no-op otherwise. */
+/** Sets an item's size, clamped to its catalog minimum; no-op otherwise.
+ * Fixed-aspect items (future round tables) keep w===d — the larger side wins,
+ * clamped to the larger minimum. */
 export function resizeItem(doc: PlanDoc, itemId: string, w: number, d: number): PlanDoc {
   const it = doc.roomObjects[itemId];
   if (!it || !Number.isFinite(w) || !Number.isFinite(d)) return doc;
   const cat = catalogItem(it.kind);
-  const nw = Math.max(cat.minW, w);
-  const nd = Math.max(cat.minD, d);
+  const def = getItemDef(it.kind);
+  let nw = Math.max(cat.minW, w);
+  let nd = Math.max(cat.minD, d);
+  if (def?.resizeMode === 'fixed-aspect') {
+    const size = Math.max(nw, nd, Math.max(cat.minW, cat.minD));
+    nw = size;
+    nd = size;
+  }
   if (it.w === nw && it.d === nd) return doc;
   const roomObjects = { ...doc.roomObjects, [itemId]: { ...it, w: nw, d: nd } };
   return copyDoc(doc, { roomObjects });

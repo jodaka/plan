@@ -186,6 +186,46 @@ export function rotatePt(p: Pt, deg: number): Pt {
   return { x: p.x * cos - p.y * sin, y: p.x * sin + p.y * cos };
 }
 
+/** Local rect polys (center at origin) — the box before rotation/translation. */
+export function localRectPolys(w: number, d: number): Pt[][] {
+  const hw = w / 2;
+  const hd = d / 2;
+  return [
+    [
+      { x: -hw, y: -hd },
+      { x: hw, y: -hd },
+      { x: hw, y: hd },
+      { x: -hw, y: hd },
+    ],
+  ];
+}
+
+/** Transforms local polys (center at origin) to world by rotate + translate. */
+export function transformPolys(local: Pt[][], x: number, y: number, deg: number): Pt[][] {
+  return local.map((poly) => poly.map((p) => addPt(rotatePt(p, deg), { x, y })));
+}
+
+/** True-shape world polys for a generic item: local → world. */
+export function itemWorldPolys(x: number, y: number, _w: number, _d: number, deg: number, local: Pt[][]): Pt[][] {
+  return transformPolys(local, x, y, deg);
+}
+
+/** Bounding box of many polys (flattened). */
+export function polysBBox(polys: Pt[][]): { minX: number; minY: number; maxX: number; maxY: number } {
+  return ptsBBox(polys.flat());
+}
+
+/** True if any poly of `a` intersects any poly of `b` (each poly convex). */
+export function polysIntersect(a: Pt[][], b: Pt[][]): boolean {
+  for (const pa of a) for (const pb of b) if (polygonsIntersect(pa, pb)) return true;
+  return false;
+}
+
+/** True if every vertex of every poly in `polys` lies inside `container`. */
+export function polysInside(polys: Pt[][], container: Pt[]): boolean {
+  return polys.every((poly) => poly.every((p) => polygonContainsPoint(container, p)));
+}
+
 /** The 4 corners of a `w`×`d` rectangle centered at (x, y), rotated by `deg`. */
 export function itemCorners(x: number, y: number, w: number, d: number, deg: number): [Pt, Pt, Pt, Pt] {
   const hw = w / 2;

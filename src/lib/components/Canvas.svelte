@@ -14,20 +14,24 @@ import {
   dist,
   fmtCm,
   itemCorners,
+  localRectPolys,
   mul,
   polygonContainsPoint,
   polygonsIntersect,
   type Pt,
-  ptsBBox,
+  polysBBox,
+  polysInside,
+  polysIntersect,
   rotatePt,
+  shrinkPolygon,
   snap,
   snapItemCenter,
   snapPt,
   sub,
+  transformPolys,
   unit,
   vectorAngleDeg,
   type SnapSegment,
-  shrinkPolygon,
   type WallEndNeighbor,
   wallCorners,
 } from '$lib/geometry';
@@ -52,7 +56,7 @@ import {
   wallsAtJoint,
   openingGapBounds,
 } from '$lib/model/ops';
-import { catalogItem, catalogLabel } from '$lib/model/catalog';
+import { catalogItem, catalogLabel, getItemDef } from '$lib/items/registry';
 import { findRooms, type Room } from '$lib/model/rooms';
 import { plan } from '$lib/stores/plan.svelte';
 import { ui } from '$lib/stores/ui.svelte';
@@ -287,7 +291,8 @@ const COLLISION_EPS = 0.01;
 interface RenderItem {
   obj: RoomObject;
   label: string;
-  corners: Pt[];
+  worldPolys: Pt[][];
+  shrunkPolys: Pt[][];
   aabb: { minX: number; minY: number; maxX: number; maxY: number };
   orphan: boolean;
   /** intersects a wall or pokes out of its room — rejected on drop */
@@ -297,22 +302,26 @@ interface RenderItem {
 }
 
 /** items merged with drag drafts; overlap + wall/room validity recomputed
- * live so tints follow drags before anything is committed */
+ * live so tints follow drags before anything is committed — true-shape aware */
 const renderItems = $derived.by<RenderItem[]>(() => {
   const roomByKey = new Map(rooms.map((r) => [r.key, r]));
   const out: RenderItem[] = [];
   for (const obj of Object.values(plan.doc.roomObjects)) {
     const merged: RoomObject = { ...obj, ...(itemDrafts[obj.id] ?? {}) };
-    const raw = itemCorners(merged.x, merged.y, merged.w, merged.d, merged.rotation);
-    const corners = shrinkPolygon(raw, COLLISION_EPS);
+    const def = getItemDef(merged.kind);
+    const local = def ? def.collisionShapes(merged.w, merged.d) : localRectPolys(merged.w, merged.d);
+    const world = transformPolys(local, merged.x, merged.y, merged.rotation);
+    const shrunk = world.map((poly: Pt[]) => shrinkPolygon(poly, COLLISION_EPS));
+    const aabb = polysBBox(world);
     const room = roomByKey.get(merged.roomId);
-    const hitsWall = wallPolys.some((wp) => polygonsIntersect(corners, wp));
-    const inside = !room || corners.every((c) => polygonContainsPoint(room.innerPts, c));
+    const hitsWall = shrunk.some((sp: Pt[]) => wallPolys.some((wp: Pt[]) => polygonsIntersect(sp, wp)));
+    const inside = !room || polysInside(shrunk, room.innerPts);
     out.push({
       obj: merged,
       label: catalogLabel(merged.kind),
-      corners,
-      aabb: ptsBBox(raw),
+      worldPolys: world,
+      shrunkPolys: shrunk,
+      aabb,
       orphan: !room,
       invalid: hitsWall || !inside,
       overlapping: false,
@@ -320,7 +329,7 @@ const renderItems = $derived.by<RenderItem[]>(() => {
   }
   for (let i = 0; i < out.length; i++) {
     for (let j = i + 1; j < out.length; j++) {
-      if (polygonsIntersect(out[i].corners, out[j].corners)) {
+      if (polysIntersect(out[i].shrunkPolys, out[j].shrunkPolys)) {
         out[i].overlapping = true;
         out[j].overlapping = true;
       }
@@ -885,8 +894,11 @@ function applyItemDrag(world: Pt) {
       nx = snap(nx);
       ny = snap(ny);
     }
-    // edge/center snapping uses the rotated item's AABB
-    const aabb = ptsBBox(itemCorners(nx, ny, obj.w, obj.d, obj.rotation));
+    // edge/center snapping uses the rotated item's AABB (true-shape aware)
+    const def = getItemDef(obj.kind);
+    const localMove = def ? def.collisionShapes(obj.w, obj.d) : localRectPolys(obj.w, obj.d);
+    const worldMove = transformPolys(localMove, nx, ny, obj.rotation);
+    const aabb = polysBBox(worldMove);
     const snapped = snapItemCenter(
       nx,
       ny,
@@ -900,8 +912,14 @@ function applyItemDrag(world: Pt) {
   } else if (drag.kind === 'resize') {
     const lv = rotatePt(sub(world, drag.fixed), -drag.rotation);
     const cat = catalogItem(obj.kind);
-    const nw = Math.max(cat.minW, drag.sx * lv.x);
-    const nd = Math.max(cat.minD, drag.sy * lv.y);
+    const def = getItemDef(obj.kind);
+    let nw = Math.max(cat.minW, drag.sx * lv.x);
+    let nd = Math.max(cat.minD, drag.sy * lv.y);
+    if (def?.resizeMode === 'fixed-aspect') {
+      const size = Math.max(nw, nd, Math.max(cat.minW, cat.minD));
+      nw = size;
+      nd = size;
+    }
     const c = addPt(drag.fixed, rotatePt({ x: (drag.sx * nw) / 2, y: (drag.sy * nd) / 2 }, drag.rotation));
     itemDrafts = { ...itemDrafts, [drag.id]: { ...obj, x: c.x, y: c.y, w: nw, d: nd } };
   } else {
@@ -938,15 +956,17 @@ function cancelItemDrag() {
 
 // --- library drag (panel → canvas) ---------------------------------------------
 
-/** validity of a would-be drop at the current cursor position */
+/** validity of a would-be drop at the current cursor position (true-shape aware) */
 function libraryDropValid(kind: string, world: Pt): { room: Room | null; valid: boolean } {
   const room = rooms.find((r) => polygonContainsPoint(r.pts, world)) ?? null;
   if (!room) return { room: null, valid: false };
   const cat = catalogItem(kind);
-  const corners = shrinkPolygon(itemCorners(world.x, world.y, cat.w, cat.d, 0), COLLISION_EPS);
+  const def = getItemDef(kind);
+  const local = def ? def.collisionShapes(cat.w, cat.d) : localRectPolys(cat.w, cat.d);
+  const worldPolys = transformPolys(local, world.x, world.y, 0);
+  const shrunk = worldPolys.map((p: Pt[]) => shrinkPolygon(p, COLLISION_EPS));
   const valid =
-    corners.every((c) => polygonContainsPoint(room.innerPts, c)) &&
-    !wallPolys.some((wp) => polygonsIntersect(corners, wp));
+    polysInside(shrunk, room.innerPts) && !shrunk.some((sp: Pt[]) => wallPolys.some((wp) => polygonsIntersect(sp, wp)));
   return { room, valid };
 }
 
