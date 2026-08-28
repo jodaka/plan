@@ -98,8 +98,14 @@
 	"inspector__wallDeleteConfirm": "This wall is {parts}. Delete anyway?",
 	"inspector__wallDeleteRoom": [
 		{
-			"declarations": ["input roomCount", "input objects"],
-			"selectors": ["roomCount", "objects"],
+			"declarations": [
+				"input roomCount",
+				"input objects"
+			],
+			"selectors": [
+				"roomCount",
+				"objects"
+			],
 			"match": {
 				"roomCount=1, objects=0": "part of a room (destroying it)",
 				"roomCount=1, objects=1": "part of a room (destroying it and orphaning 1 object)",
@@ -112,8 +118,14 @@
 	],
 	"inspector__wallDeleteOpenings": [
 		{
-			"declarations": ["input windows", "input doors"],
-			"selectors": ["windows", "doors"],
+			"declarations": [
+				"input windows",
+				"input doors"
+			],
+			"selectors": [
+				"windows",
+				"doors"
+			],
 			"match": {
 				"windows=1, doors=0": "deleting 1 window",
 				"windows=*, doors=0": "deleting {windows} windows",
@@ -127,13 +139,5 @@
 		}
 	],
 	"inspector__catalogBedroom": "Bedroom",
-	"inspector__catalogLivingRoom": "Living room",
-	"inspector__catalogBed": "Bed",
-	"inspector__catalogDoubleBed": "Double bed",
-	"inspector__catalogChair": "Chair",
-	"inspector__catalogSofa": "Sofa",
-	"inspector__catalogTable": "Table",
-	"inspector__catalogCornerTable": "Corner table",
-	"inspector__catalogCloset": "Closet",
-	"inspector__catalogFallback": "Item"
+	"inspector__catalogLivingRoom": "Living room"
 }

@@ -2,7 +2,7 @@ import type { ItemDef } from '../types';
 
 const def: ItemDef = {
   kind: 'double-bed',
-  label: 'Double bed',
+  label: { en: 'Double bed', ru: 'Двуспальная кровать' },
   category: 'bedroom',
   defaults: { w: 160, d: 200, minW: 120, minD: 180 },
   view: (w, d, scale) => {

@@ -72,10 +72,13 @@ bun test           # unit tests (bun:test, tests/ directory)
   with windows (gaps/floors count both), delete with their wall, show the same amber
   gap hints as windows when selected, and persist as `doc.doors`
 - Room items (furniture): a categorized library in the side panel (Bedroom: bed,
-  double bed · Living room: chair, sofa, table, corner table, closet) — drag a row onto
+  double bed · Living room: chair, sofa, table, corner table, L-shaped table, closet,
+  floor lamp) rendered as a NAMELESS two-column palette of visual previews —
+  drag a tile onto
   a room to place it (`Add ${label}`); the library lives in `src/lib/items/` — adding
-  an item = one `items/library/<kind>.ts` file (defaults + optional collision shapes +
-  optional declarative SVG view shapes) + one line in `items/registry.ts`;
+  an item = one `items/library/<kind>.ts` file (defaults + inline `{ en, ru? }` label
+  + optional collision shapes + optional declarative SVG view shapes) + one line in
+  `items/registry.ts`;
   items are bound to the room's stable key and move with it (room drag translates them);
   selectable, draggable (snaps to wall inner faces, sibling edges/centers + grid),
   resizable via 4 corner handles, rotatable via a lollipop handle (15° detents, exact
@@ -135,12 +138,13 @@ src/lib/
     WallView.svelte        # wall body + invisible fat hit-line (corner extension math)
     WindowView.svelte      # window frame + glass on its wall + invisible hit area
     DoorView.svelte        # door jamb frame + swing leaf/arc + invisible hit area
-    FurnitureView.svelte   # generic renderer for item view shapes + hit area
+    ItemShapes.svelte      # generic renderer for item view shapes (canvas + palette)
+    FurnitureView.svelte   # item wrapper: transform, selection outline, hit area
     RoomView.svelte        # room polygon + m² label at centroid (label = room drag handle)
     WallDims.svelte        # outer/inner dimension lines for highlighted walls
     AngleArcs.svelte       # angle arcs at joints of highlighted walls
     Toolbar.svelte         # tools, snap/grid, zoom, undo/redo, import/export
-    InspectorPanel.svelte  # selected-wall numeric editing
+    InspectorPanel.svelte  # selected-entity numeric editing + item library palette
 src/routes/+page.svelte    # layout, global shortcuts, autosave effect
 tests/model.test.ts        # bun:test unit tests for geometry + ops
 ```

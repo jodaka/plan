@@ -8,9 +8,17 @@ export const CATEGORIES = [
 
 export type CategoryId = (typeof CATEGORIES)[number]['id'];
 
+/**
+ * Localized catalog label: `en` REQUIRED (fallback + test data), other locales
+ * optional. Looked up via `catalogLabel` — never index into it directly.
+ * Kept inline in the item's library file so adding an item never touches the
+ * paraglide catalogs (compile-time keyed, would need a per-item switch).
+ */
+export type Label = { en: string; ru?: string };
+
 export interface CatalogItem {
   kind: string;
-  label: string;
+  label: Label;
   w: number;
   d: number;
   minW: number;
@@ -52,13 +60,14 @@ export type ItemShape =
  */
 export interface ItemDef {
   kind: string;
-  label: string;
+  label: Label;
   category: CategoryId;
   defaults: { w: number; d: number; minW: number; minD: number };
   /**
    * Local-frame convex polygons (center at 0,0, axis-aligned) that describe
-   * the true collision shape. For now all items keep the bbox rectangle; future
-   * L/round items return N polys or a dense circle approximation.
+   * the true collision shape. Rect items keep the bbox; non-convex shapes
+   * (L-shaped table) decompose into several rects, round ones use a dense
+   * convex polygon approximation that still covers the drawn outline.
    * Each poly is convex so `polygonsIntersect` SAT holds.
    */
   collisionShapes?: (w: number, d: number) => Pt[][];

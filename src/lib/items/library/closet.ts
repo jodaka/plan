@@ -2,7 +2,7 @@ import type { ItemDef } from '../types';
 
 const def: ItemDef = {
   kind: 'closet',
-  label: 'Closet',
+  label: { en: 'Closet', ru: 'Шкаф' },
   category: 'living-room',
   defaults: { w: 120, d: 60, minW: 50, minD: 40 },
   view: (w, d, scale) => {

@@ -98,8 +98,14 @@
 	"inspector__wallDeleteConfirm": "Эта стена {parts}. Всё равно удалить?",
 	"inspector__wallDeleteRoom": [
 		{
-			"declarations": ["input roomCount", "input objects"],
-			"selectors": ["roomCount", "objects"],
+			"declarations": [
+				"input roomCount",
+				"input objects"
+			],
+			"selectors": [
+				"roomCount",
+				"objects"
+			],
 			"match": {
 				"roomCount=1, objects=0": "является частью комнаты (она будет уничтожена)",
 				"roomCount=1, objects=1": "является частью комнаты (она будет уничтожена, а 1 объект останется без комнаты)",
@@ -112,8 +118,14 @@
 	],
 	"inspector__wallDeleteOpenings": [
 		{
-			"declarations": ["input windows", "input doors"],
-			"selectors": ["windows", "doors"],
+			"declarations": [
+				"input windows",
+				"input doors"
+			],
+			"selectors": [
+				"windows",
+				"doors"
+			],
 			"match": {
 				"windows=1, doors=0": "будет удалено 1 окно",
 				"windows=*, doors=0": "будет удалено {windows} окон",
@@ -127,13 +139,5 @@
 		}
 	],
 	"inspector__catalogBedroom": "Спальня",
-	"inspector__catalogLivingRoom": "Гостиная",
-	"inspector__catalogBed": "Кровать",
-	"inspector__catalogDoubleBed": "Двуспальная кровать",
-	"inspector__catalogChair": "Стул",
-	"inspector__catalogSofa": "Диван",
-	"inspector__catalogTable": "Стол",
-	"inspector__catalogCornerTable": "Угловой стол",
-	"inspector__catalogCloset": "Шкаф",
-	"inspector__catalogFallback": "Объект"
+	"inspector__catalogLivingRoom": "Гостиная"
 }

@@ -1,5 +1,5 @@
 import type { Pt } from '../geometry';
-import type { CatalogCategory, CatalogItem, ItemDef, ItemShape } from './types';
+import type { CatalogCategory, CatalogItem, ItemDef, ItemShape, Label } from './types';
 import { CATEGORIES } from './types';
 
 // ── REGISTER NEW ITEMS HERE ──────────────────────────────────────────────────
@@ -11,10 +11,12 @@ import chair from './library/chair';
 import closet from './library/closet';
 import cornerTable from './library/corner-table';
 import doubleBed from './library/double-bed';
+import floorLamp from './library/floor-lamp';
+import lTable from './library/l-table';
 import sofa from './library/sofa';
 import table from './library/table';
 
-const DEFS: ItemDef[] = [bed, doubleBed, chair, sofa, table, cornerTable, closet];
+const DEFS: ItemDef[] = [bed, doubleBed, chair, sofa, table, cornerTable, lTable, closet, floorLamp];
 
 const DEF_MAP = new Map<string, ItemDef>(DEFS.map((d) => [d.kind, d]));
 
@@ -35,7 +37,7 @@ export const CATALOG: CatalogCategory[] = CATEGORIES.map((cat) => ({
 
 export const FALLBACK_ITEM: CatalogItem = {
   kind: 'unknown',
-  label: 'Item',
+  label: { en: 'Item', ru: 'Объект' },
   w: 60,
   d: 60,
   minW: 30,
@@ -44,7 +46,7 @@ export const FALLBACK_ITEM: CatalogItem = {
 
 const FALLBACK_DEF: ItemDef = {
   kind: 'unknown',
-  label: 'Item',
+  label: { en: 'Item', ru: 'Объект' },
   category: 'living-room',
   defaults: { w: 60, d: 60, minW: 30, minD: 30 },
   resizeMode: 'bbox',
@@ -100,6 +102,16 @@ export function clampItemSize(kind: string, w: number, d: number): { w: number; 
   return { w: Math.max(minW, w), d: Math.max(minD, d) };
 }
 
+/** The locale `catalogLabel` resolves. Injected by the app (paraglide's
+ * `getLocale` via `setLabelLocale` in `+page.svelte`) instead of importing the
+ * generated runtime here — bun test imports this module and must not depend on
+ * gitignored generated code (same constraint as model/io.ts, §12). */
+let labelLocale: keyof Label = 'en';
+
+export function setLabelLocale(locale: keyof Label): void {
+  labelLocale = locale;
+}
+
 export function catalogItem(kind: string): CatalogItem {
   const def = resolveDef(kind);
   return {
@@ -112,6 +124,8 @@ export function catalogItem(kind: string): CatalogItem {
   };
 }
 
+/** Localized item label: the injected locale if present, else `en`. */
 export function catalogLabel(kind: string): string {
-  return catalogItem(kind).label;
+  const { label } = resolveDef(kind);
+  return label[labelLocale] ?? label.en;
 }

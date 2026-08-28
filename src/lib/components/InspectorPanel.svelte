@@ -1,6 +1,7 @@
 <script lang="ts">
 import { dist, fmtCm, fmtM2, wallAngleDeg } from '$lib/geometry';
-import { CATALOG, catalogItem } from '$lib/items/registry';
+import ItemShapes from '$lib/components/ItemShapes.svelte';
+import { CATALOG, catalogItem, catalogLabel, itemShapes } from '$lib/items/registry';
 import {
   addDoor,
   addWindow,
@@ -81,31 +82,10 @@ function doorModeLabel(mode: DoorMode): string {
   }
 }
 
-function itemLabel(kind: string): string {
-  switch (kind) {
-    case 'bed':
-      return m.inspector__catalogBed();
-    case 'double-bed':
-      return m.inspector__catalogDoubleBed();
-    case 'chair':
-      return m.inspector__catalogChair();
-    case 'sofa':
-      return m.inspector__catalogSofa();
-    case 'table':
-      return m.inspector__catalogTable();
-    case 'corner-table':
-      return m.inspector__catalogCornerTable();
-    case 'closet':
-      return m.inspector__catalogCloset();
-    default:
-      return m.inspector__catalogFallback();
-  }
-}
-
 function categoryLabel(id: string): string {
   if (id === 'bedroom') return m.inspector__catalogBedroom();
   if (id === 'living-room') return m.inspector__catalogLivingRoom();
-  return itemLabel(id);
+  return id;
 }
 
 function applyLength(value: number) {
@@ -182,17 +162,17 @@ function removeWindow() {
 
 function applyItemSize(w: number, d: number) {
   if (!item || !Number.isFinite(w) || !Number.isFinite(d)) return;
-  plan.commit(m.inspector__commitResizeItem({ label: itemLabel(item.kind) }), resizeItem(plan.doc, item.id, w, d));
+  plan.commit(m.inspector__commitResizeItem({ label: catalogLabel(item.kind) }), resizeItem(plan.doc, item.id, w, d));
 }
 
 function applyItemRotation(deg: number) {
   if (!item || !Number.isFinite(deg)) return;
-  plan.commit(m.inspector__commitRotateItem({ label: itemLabel(item.kind) }), rotateItem(plan.doc, item.id, deg));
+  plan.commit(m.inspector__commitRotateItem({ label: catalogLabel(item.kind) }), rotateItem(plan.doc, item.id, deg));
 }
 
 function removeItem() {
   if (!item) return;
-  plan.commit(m.inspector__commitDeleteItem({ label: itemLabel(item.kind) }), removeRoomItem(plan.doc, item.id));
+  plan.commit(m.inspector__commitDeleteItem({ label: catalogLabel(item.kind) }), removeRoomItem(plan.doc, item.id));
   ui.selectItem(null);
 }
 
@@ -262,7 +242,7 @@ function confirmMessage(roomCount: number, objectCount: number, winCount: number
           <p class="meta">{m.inspector__resizeDragHint()}</p>
           <button class="danger" onclick={removeDoor}>{m.inspector__deleteDoorButton()}</button>
         {:else if item}
-          <h3>{itemLabel(item.kind)}</h3>
+          <h3>{catalogLabel(item.kind)}</h3>
           <label>
             <span>{m.inspector__widthCm()}</span>
             <input
@@ -385,18 +365,27 @@ function confirmMessage(roomCount: number, objectCount: number, winCount: number
     <div class="section-body">
       {#each CATALOG as cat (cat.id)}
         <h3>{categoryLabel(cat.id)}</h3>
-        {#each cat.items as it (it.kind)}
-          <button
-            class="lib-item"
-            onpointerdown={(e) => {
+        <div class="lib-grid">
+          {#each cat.items as it (it.kind)}
+            {@const max = Math.max(it.w, it.d)}
+            {@const previewScale = 52 / max}
+            <button
+              class="lib-item"
+              aria-label={catalogLabel(it.kind)}
+              onpointerdown={(e) => {
               e.preventDefault();
-              ui.startLibraryDrag(it.kind, itemLabel(it.kind));
+              ui.startLibraryDrag(it.kind, catalogLabel(it.kind));
             }}
-            title={m.inspector__libraryDragTitle()}>
-            <span>{itemLabel(it.kind)}</span>
-            <span class="dims">{it.w}×{it.d}</span>
-          </button>
-        {/each}
+              title={m.inspector__libraryDragTitle()}>
+              <svg
+                viewBox={`${-it.w / 2} ${-it.d / 2} ${it.w} ${it.d}`}
+                width={Math.round((it.w / max) * 52)}
+                height={Math.round((it.d / max) * 52)}>
+                <ItemShapes shapes={itemShapes(it.kind, it.w, it.d, previewScale)} scale={previewScale} />
+              </svg>
+            </button>
+          {/each}
+        </div>
       {/each}
       <p class="meta">{m.inspector__libraryDragHint()}</p>
     </div>
@@ -438,16 +427,20 @@ h3 {
   margin: 0;
   font-size: 14px;
 }
-.lib-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
+.lib-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
   gap: 6px;
 }
-.lib-item .dims {
-  color: #94a3b8;
-  font-size: 11px;
-  font-variant-numeric: tabular-nums;
+.lib-item {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 5px;
+}
+.lib-item svg {
+  display: block;
+  pointer-events: none;
 }
 label {
   display: flex;

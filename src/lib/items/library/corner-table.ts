@@ -2,7 +2,7 @@ import type { ItemDef } from '../types';
 
 const def: ItemDef = {
   kind: 'corner-table',
-  label: 'Corner table',
+  label: { en: 'Corner table', ru: 'Угловой стол' },
   category: 'living-room',
   defaults: { w: 60, d: 60, minW: 30, minD: 30 },
   // true shape is a rect with one rounded corner; collision keeps bbox for now.

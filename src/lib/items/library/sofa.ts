@@ -2,7 +2,7 @@ import type { ItemDef } from '../types';
 
 const def: ItemDef = {
   kind: 'sofa',
-  label: 'Sofa',
+  label: { en: 'Sofa', ru: 'Диван' },
   category: 'living-room',
   defaults: { w: 200, d: 90, minW: 100, minD: 60 },
   view: (w, d) => {

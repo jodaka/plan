@@ -424,9 +424,16 @@ unknown modes to `'none'`; docs without a `doors` field normalize to `{}`.
 
 **Decision**: furniture lives in `doc.roomObjects` as `RoomObject { id, roomId, kind,
 x, y, w, d, rotation }` — center position, size along LOCAL axes, rotation in degrees.
-The shape is always a rectangle; per-kind looks (pillows, backrests, armrests, closet
-doors, corner-table round front) are declarative `ItemShape` data returned by each
-item's `view` hook and rendered by the generic renderer in `FurnitureView.svelte`.
+The FRAME is always a rectangle; per-kind looks (pillows, backrests, armrests, closet
+doors, corner-table round front) and true collision shapes are declarative data from
+each item's library file: `view(w, d, scale) => ItemShape[]` (rect/line/circle/path
+primitives) rendered by the generic renderer `ItemShapes.svelte` — used by BOTH the
+canvas (`FurnitureView` wraps it in the positioned `<g>` + hit area) and the
+NAMELESS two-column library palette in the inspector (visual previews only — no
+labels, so the library needs no i18n; internal labels stay English catalog data).
+Non-rectangular items are supported: the L-shaped table decomposes its collision
+into two convex rects, the round floor lamp uses a 16-gon whose apothem equals the
+base radius (covers the drawn circle) plus `resizeMode: 'fixed-aspect'`.
 The library lives in `src/lib/items/`: ONE file per item, `items/library/<kind>.ts`
 (defaults + optional `collisionShapes` + optional `view` — both default to the plain
 rect), registered with one line in `items/registry.ts` (explicit list — `import.meta.glob`
@@ -439,18 +446,19 @@ joint moves/thickness edits and move with room drags (`moveRoom` translates them
 when the room's loop breaks they are kept, orphaned, and render grayed until dropped
 into some room again (re-binding).
 
-**Adding an item** (two steps, nothing else touches):
-1. create `items/library/<kind>.ts` exporting the `ItemDef`: `kind`, `label`,
-   `category`, `defaults { w, d, minW, minD }` — plus OPTIONAL hooks, both defaulting
-   to the plain rect: `view(w, d, scale) => ItemShape[]` for the look (rect/line/
-   circle/path data, parts `body`/`detail`/`hinge` styled by `FurnitureView`) and
-   `collisionShapes(w, d) => Pt[][]` for true-shape collision (keep it covering the
-   full drawn outline — svgExport derives its viewport from it); a `resizeMode`
-   of `'fixed-aspect'` keeps w===d on resize (round items);
+**Adding an item** (two steps, nothing else touches — no paraglide keys needed):
+1. create `items/library/<kind>.ts` exporting the `ItemDef`: `kind`, `label`
+   (a `Label` dict — `en` REQUIRED, `ru?` optional; resolved with fallback by
+   `catalogLabel`), `category`, `defaults { w, d, minW, minD }` — plus OPTIONAL
+   hooks, both defaulting to the plain rect: `view(w, d, scale) => ItemShape[]` for
+   the look (rect/line/circle/path data, parts `body`/`detail`/`hinge` styled by
+   `ItemShapes`) and `collisionShapes(w, d) => Pt[][]` for true-shape collision
+   (keep it covering the full drawn outline — svgExport derives its viewport from
+   it); a `resizeMode` of `'fixed-aspect'` keeps w===d on resize (round items);
 2. add it to the `DEFS` list in `items/registry.ts`.
-Everything else (library panel, canvas rendering, hit-testing, snapping, resize
-clamps, persistence, unknown-kind fallback, export) is generic and derives from the
-registry.
+Everything else (library palette with live previews, canvas rendering, hit-testing,
+snapping, resize clamps, persistence, unknown-kind fallback, export) is generic and
+derives from the registry.
 
 **Collision rules** (as decided with the user): item–item overlap is ALLOWED and
 warned — a Canvas `$derived` runs pairwise SAT (`polygonsIntersect`) on the rotated
@@ -531,6 +539,15 @@ generated code, never hand-edited. Key conventions:
   as FUNCTIONS at render time (`m.toolbar__fitTitle()`). No raw UI strings in markup.
   The pure model layer stays string-free: `parseImport` returns English error text,
   which the call site wraps in a localized template — only UI chrome is translated.
+  Item library labels are ALSO localized but live INLINE in each item's library file
+  (§18) as a `Label` dict (`{ en, ru? }`, `en` required) instead of paraglide keys:
+  paraglide is compile-time keyed (dynamic lookup breaks its tree-shaking), so a
+  per-item key + switch was tried and rejected. `catalogLabel(kind)` is the single
+  accessor (`label[locale] ?? label.en`) with the locale INJECTED via `setLabelLocale`
+  from `+page.svelte` (paraglide's `getLocale`) — the registry itself never imports
+  the generated runtime, keeping `bun test` free of gitignored generated code
+  (same constraint as model/io.ts, §12). The palette stays a nameless visual grid;
+  labels surface in the ghost, toasts, inspector heading and undo entries.
 - **Locale detection**: cookie strategy only (`PARAGLIDE_LOCALE`), falling back to
   `baseLocale`. No URL or `preferredLanguage` strategy — the app is client-only and
   the language is an explicit user choice via the toolbar 🇬🇧/🇷🇺 `Toggle`, which
