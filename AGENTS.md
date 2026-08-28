@@ -72,8 +72,10 @@ bun test           # unit tests (bun:test, tests/ directory)
   with windows (gaps/floors count both), delete with their wall, show the same amber
   gap hints as windows when selected, and persist as `doc.doors`
 - Room items (furniture): a categorized library in the side panel (Bedroom: bed,
-  double bed · Living room: chair, sofa, table, corner table, closet — `model/catalog.ts`,
-  adding an item = one data entry) — drag a row onto a room to place it (`Add ${label}`);
+  double bed · Living room: chair, sofa, table, corner table, closet) — drag a row onto
+  a room to place it (`Add ${label}`); the library lives in `src/lib/items/` — adding
+  an item = one `items/library/<kind>.ts` file (defaults + optional collision shapes +
+  optional declarative SVG view shapes) + one line in `items/registry.ts`;
   items are bound to the room's stable key and move with it (room drag translates them);
   selectable, draggable (snaps to wall inner faces, sibling edges/centers + grid),
   resizable via 4 corner handles, rotatable via a lollipop handle (15° detents, exact
@@ -91,7 +93,9 @@ bun test           # unit tests (bun:test, tests/ directory)
 - Import/export (toolbar): JSON file `floorplan_<timestamp>.json` with metadata
   (`app`, `appVersion`, `exportedAt`, `doc`); import validates version metadata
   (no version → error), is undoable, and offers to export the current plan first
-  when walls exist
+  when walls exist; "Export SVG" downloads the live canvas clone as a standalone
+  vector drawing (`floorplan_<timestamp>.svg`, inlined styles, recomputed viewport —
+  see `ai/decisions.md` §19)
 - All displayed lengths/angles are mm-precision (`fmtCm`); raw floats never rendered
 - Page is client-only (`export const ssr = false` in `src/routes/+page.ts`)
 
@@ -102,12 +106,15 @@ src/lib/
   types.ts                 # Joint, Wall, RoomObject, PlanDoc; thickness constants
   geometry.ts              # pure math: snap, angles, itemCorners/SAT/snap, fmtCm (unit = 1 cm)
   model/
-    catalog.ts             # categorized item catalog (pure data — add items here)
     ops.ts                 # ALL document mutations as pure (doc, …) => doc functions
     rooms.ts               # findRooms: bounded faces of the wall graph (derived rooms)
     storage.ts             # localStorage load/save (browser-guarded)
     validate.ts            # sanitizeDoc: repairs/culls malformed plan data (pure)
     io.ts                  # export serialize/download + import parse/validate (pure)
+  items/
+    types.ts               # ItemDef, ItemShape, categories; hooks optional (rect defaults)
+    registry.ts            # THE item list — register new library/<kind>.ts files here
+    library/<kind>.ts      # ONE file per item: defaults + collision shapes + view shapes
   version.ts               # APP_VERSION written into export files
   stores/
     plan.svelte.ts         # doc + history: commit(label, doc)/undo/redo, $state.raw
@@ -118,7 +125,7 @@ src/lib/
     WallView.svelte        # wall body + invisible fat hit-line (corner extension math)
     WindowView.svelte      # window frame + glass on its wall + invisible hit area
     DoorView.svelte        # door jamb frame + swing leaf/arc + invisible hit area
-    FurnitureView.svelte   # room item body + per-kind details + invisible hit area
+    FurnitureView.svelte   # generic renderer for item view shapes + hit area
     RoomView.svelte        # room polygon + m² label at centroid (label = room drag handle)
     WallDims.svelte        # outer/inner dimension lines for highlighted walls
     AngleArcs.svelte       # angle arcs at joints of highlighted walls

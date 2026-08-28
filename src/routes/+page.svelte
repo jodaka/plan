@@ -3,7 +3,7 @@ import Canvas from '$lib/components/Canvas.svelte';
 import InspectorPanel from '$lib/components/InspectorPanel.svelte';
 import Toolbar from '$lib/components/Toolbar.svelte';
 import { deleteDoor, deleteWall, deleteWindow, removeRoomItem } from '$lib/model/ops';
-import { catalogLabel } from '$lib/model/catalog';
+import { catalogLabel } from '$lib/items/registry';
 import { saveDoc } from '$lib/model/storage';
 import { plan } from '$lib/stores/plan.svelte';
 import { ui } from '$lib/stores/ui.svelte';

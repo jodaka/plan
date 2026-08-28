@@ -14,7 +14,6 @@ import {
   dist,
   fmtCm,
   itemCorners,
-  localRectPolys,
   mul,
   polygonContainsPoint,
   polygonsIntersect,
@@ -56,7 +55,7 @@ import {
   wallsAtJoint,
   openingGapBounds,
 } from '$lib/model/ops';
-import { catalogItem, catalogLabel, getItemDef } from '$lib/items/registry';
+import { catalogItem, catalogLabel, clampItemSize, collisionPolys } from '$lib/items/registry';
 import { findRooms, type Room } from '$lib/model/rooms';
 import { plan } from '$lib/stores/plan.svelte';
 import { ui } from '$lib/stores/ui.svelte';
@@ -291,7 +290,6 @@ const COLLISION_EPS = 0.01;
 interface RenderItem {
   obj: RoomObject;
   label: string;
-  worldPolys: Pt[][];
   shrunkPolys: Pt[][];
   aabb: { minX: number; minY: number; maxX: number; maxY: number };
   orphan: boolean;
@@ -308,8 +306,7 @@ const renderItems = $derived.by<RenderItem[]>(() => {
   const out: RenderItem[] = [];
   for (const obj of Object.values(plan.doc.roomObjects)) {
     const merged: RoomObject = { ...obj, ...(itemDrafts[obj.id] ?? {}) };
-    const def = getItemDef(merged.kind);
-    const local = def ? def.collisionShapes(merged.w, merged.d) : localRectPolys(merged.w, merged.d);
+    const local = collisionPolys(merged.kind, merged.w, merged.d);
     const world = transformPolys(local, merged.x, merged.y, merged.rotation);
     const shrunk = world.map((poly: Pt[]) => shrinkPolygon(poly, COLLISION_EPS));
     const aabb = polysBBox(world);
@@ -319,7 +316,6 @@ const renderItems = $derived.by<RenderItem[]>(() => {
     out.push({
       obj: merged,
       label: catalogLabel(merged.kind),
-      worldPolys: world,
       shrunkPolys: shrunk,
       aabb,
       orphan: !room,
@@ -895,8 +891,7 @@ function applyItemDrag(world: Pt) {
       ny = snap(ny);
     }
     // edge/center snapping uses the rotated item's AABB (true-shape aware)
-    const def = getItemDef(obj.kind);
-    const localMove = def ? def.collisionShapes(obj.w, obj.d) : localRectPolys(obj.w, obj.d);
+    const localMove = collisionPolys(obj.kind, obj.w, obj.d);
     const worldMove = transformPolys(localMove, nx, ny, obj.rotation);
     const aabb = polysBBox(worldMove);
     const snapped = snapItemCenter(
@@ -911,17 +906,12 @@ function applyItemDrag(world: Pt) {
     itemDrafts = { ...itemDrafts, [drag.id]: { ...obj, x: snapped.x, y: snapped.y } };
   } else if (drag.kind === 'resize') {
     const lv = rotatePt(sub(world, drag.fixed), -drag.rotation);
-    const cat = catalogItem(obj.kind);
-    const def = getItemDef(obj.kind);
-    let nw = Math.max(cat.minW, drag.sx * lv.x);
-    let nd = Math.max(cat.minD, drag.sy * lv.y);
-    if (def?.resizeMode === 'fixed-aspect') {
-      const size = Math.max(nw, nd, Math.max(cat.minW, cat.minD));
-      nw = size;
-      nd = size;
-    }
-    const c = addPt(drag.fixed, rotatePt({ x: (drag.sx * nw) / 2, y: (drag.sy * nd) / 2 }, drag.rotation));
-    itemDrafts = { ...itemDrafts, [drag.id]: { ...obj, x: c.x, y: c.y, w: nw, d: nd } };
+    const clamped = clampItemSize(obj.kind, drag.sx * lv.x, drag.sy * lv.y);
+    const c = addPt(
+      drag.fixed,
+      rotatePt({ x: (drag.sx * clamped.w) / 2, y: (drag.sy * clamped.d) / 2 }, drag.rotation),
+    );
+    itemDrafts = { ...itemDrafts, [drag.id]: { ...obj, x: c.x, y: c.y, w: clamped.w, d: clamped.d } };
   } else {
     const ang = vectorAngleDeg(sub(world, obj)) + 90;
     const rotation = ui.snapEnabled ? Math.round(ang / 15) * 15 : ang;
@@ -961,8 +951,7 @@ function libraryDropValid(kind: string, world: Pt): { room: Room | null; valid: 
   const room = rooms.find((r) => polygonContainsPoint(r.pts, world)) ?? null;
   if (!room) return { room: null, valid: false };
   const cat = catalogItem(kind);
-  const def = getItemDef(kind);
-  const local = def ? def.collisionShapes(cat.w, cat.d) : localRectPolys(cat.w, cat.d);
+  const local = collisionPolys(kind, cat.w, cat.d);
   const worldPolys = transformPolys(local, world.x, world.y, 0);
   const shrunk = worldPolys.map((p: Pt[]) => shrinkPolygon(p, COLLISION_EPS));
   const valid =
@@ -1490,6 +1479,12 @@ svg.canvas.cursor-grabbing {
 :global(svg.canvas .handle) {
   fill: #ffffff;
   stroke: #2563eb;
+  cursor: grab;
+}
+:global(svg.canvas .item-handle) {
+  cursor: nwse-resize;
+}
+:global(svg.canvas .item-rotate-handle) {
   cursor: grab;
 }
 :global(svg.canvas .sel-overlay) {

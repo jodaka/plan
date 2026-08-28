@@ -1,5 +1,5 @@
-import { localRectPolys, transformPolys } from '../geometry';
-import { getItemDef } from '../items/registry';
+import { transformPolys } from '../geometry';
+import { collisionPolys } from '../items/registry';
 import type { PlanDoc } from '../types';
 
 const PX_PER_CM = 15;
@@ -56,10 +56,11 @@ export function downloadSvg(doc: PlanDoc): void {
     if (j.x > maxX) maxX = j.x;
     if (j.y > maxY) maxY = j.y;
   }
+  // NOTE: the viewport is derived from COLLISION shapes — keep collision shapes
+  // covering the full drawn outline (see corner-table comment) or the export
+  // will crop the visible shape.
   for (const obj of Object.values(doc.roomObjects)) {
-    const def = getItemDef(obj.kind);
-    const local = def ? def.collisionShapes(obj.w, obj.d) : localRectPolys(obj.w, obj.d);
-    const polys = transformPolys(local, obj.x, obj.y, obj.rotation);
+    const polys = transformPolys(collisionPolys(obj.kind, obj.w, obj.d), obj.x, obj.y, obj.rotation);
     for (const poly of polys)
       for (const p of poly) {
         if (p.x < minX) minX = p.x;

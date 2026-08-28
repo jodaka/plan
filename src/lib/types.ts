@@ -33,7 +33,7 @@ export interface RoomObject {
   id: RoomObjectId;
   /** stable key of the bound room (sorted wall ids of its loop — model/rooms.ts) */
   roomId: string;
-  /** catalog kind id: 'bed' | 'sofa' | … (model/catalog.ts) */
+  /** catalog kind id: 'bed' | 'sofa' | … (items/library/*.ts, items/registry.ts) */
   kind: string;
   /** world position of the item center, cm */
   x: number;

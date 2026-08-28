@@ -425,13 +425,32 @@ unknown modes to `'none'`; docs without a `doors` field normalize to `{}`.
 **Decision**: furniture lives in `doc.roomObjects` as `RoomObject { id, roomId, kind,
 x, y, w, d, rotation }` — center position, size along LOCAL axes, rotation in degrees.
 The shape is always a rectangle; per-kind looks (pillows, backrests, armrests, closet
-doors, corner-table round front) are drawn inside it by `FurnitureView.svelte`. The
-catalog (`model/catalog.ts`) is pure data — Bedroom (bed, double bed) + Living room
-(chair, sofa, table, corner table, closet) for v1; adding an item is one entry (+ one
-drawing case). `roomId` is the room's stable wall-set key (§15), so items survive
+doors, corner-table round front) are declarative `ItemShape` data returned by each
+item's `view` hook and rendered by the generic renderer in `FurnitureView.svelte`.
+The library lives in `src/lib/items/`: ONE file per item, `items/library/<kind>.ts`
+(defaults + optional `collisionShapes` + optional `view` — both default to the plain
+rect), registered with one line in `items/registry.ts` (explicit list — `import.meta.glob`
+is Vite-only and would break `bun test`). `registry` also centralizes the shared
+helpers: `collisionPolys(kind, w, d)` (bbox-rect fallback for unknown kinds),
+`itemShapes(...)` (plain-rect fallback) and `clampItemSize(...)` (the single resize
+clamp shared by `resizeItem` and the live drag preview). `roomId` is the room's stable
+wall-set key (§15), so items survive
 joint moves/thickness edits and move with room drags (`moveRoom` translates them);
 when the room's loop breaks they are kept, orphaned, and render grayed until dropped
 into some room again (re-binding).
+
+**Adding an item** (two steps, nothing else touches):
+1. create `items/library/<kind>.ts` exporting the `ItemDef`: `kind`, `label`,
+   `category`, `defaults { w, d, minW, minD }` — plus OPTIONAL hooks, both defaulting
+   to the plain rect: `view(w, d, scale) => ItemShape[]` for the look (rect/line/
+   circle/path data, parts `body`/`detail`/`hinge` styled by `FurnitureView`) and
+   `collisionShapes(w, d) => Pt[][]` for true-shape collision (keep it covering the
+   full drawn outline — svgExport derives its viewport from it); a `resizeMode`
+   of `'fixed-aspect'` keeps w===d on resize (round items);
+2. add it to the `DEFS` list in `items/registry.ts`.
+Everything else (library panel, canvas rendering, hit-testing, snapping, resize
+clamps, persistence, unknown-kind fallback, export) is generic and derives from the
+registry.
 
 **Collision rules** (as decided with the user): item–item overlap is ALLOWED and
 warned — a Canvas `$derived` runs pairwise SAT (`polygonsIntersect`) on the rotated
@@ -468,3 +487,29 @@ same stable wall-set key: they survive undo/redo and even destroying + redrawing
 exact same loop, and are kept (orphaned, harmless) when the room dies. Names are
 inspector-only by design — the canvas keeps showing the m² label. `renameRoom`
 trims, clears on empty input (deletes the key), and no-ops on identity.
+
+## 19. SVG export (vector drawing download)
+
+**Decision**: "Export SVG" in the toolbar (`model/svgExport.ts` → `downloadSvg`)
+produces a standalone vector file of the current plan. Rather than re-rendering the
+plan from data (a second renderer to keep in sync), it CLONES the live `svg.canvas`
+— the export is by construction exactly what the user sees, all layers included.
+The clone is made standalone by:
+
+- **Inlining styles**: walks original + clone in parallel and copies every computed
+  style property onto an inline `style` attribute (preserving `!important`), EXCEPT
+  transform-ish properties (`transform`, `translate`, `scale`, `rotate`,
+  `transform-origin`) — those live in attributes and must not double-apply.
+- **Recomputing the viewport**: bbox over wall joints + item collision polys
+  (world-transformed), padded by `20 + maxThickness/2` so strokes don't clip.
+  COUPLING: the viewport derives from COLLISION shapes, so an item's collision
+  shapes must cover its drawn outline (see §18) or the export crops it. An empty
+  plan keeps the current viewBox instead.
+- **Cleaning up**: pan/zoom transform removed from the root `<g>`, grid lines
+  (`.line[stroke="#e2e8f0"]`) stripped, white background rect prepended,
+  `viewBox` + `width`/`height` set at 15 px/cm (`PX_PER_CM`).
+
+Download is the same colon-free timestamp convention as JSON
+(`floorplan_<YYYY-MM-DD_HH-mm-ss local>.svg`) via Blob + object URL, with
+`typeof document/window` guards so bun test can import the module (same constraint
+as §12).

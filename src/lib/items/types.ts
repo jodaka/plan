@@ -26,9 +26,29 @@ export interface CatalogCategory {
 export type ResizeMode = 'bbox' | 'fixed-aspect';
 
 /**
- * Per-item definition — pure data + geometry. `Render` lives in a sibling
- * `.svelte` file; this type stays `no $app/*` so `ops/validate/tests` can
- * import it. Adding an item = one `defs/<kind>.ts` + one `views/<kind>.svelte`.
+ * Which named style class a view shape gets (see `FurnitureView.svelte`).
+ * `body` = outline fill, `detail` = inner drawing, `hinge` = solid dot.
+ */
+export type ItemPart = 'body' | 'detail' | 'hinge';
+
+/**
+ * Declarative SVG primitive for an item's look, in the item's local frame
+ * (center 0,0, axis-aligned — the parent `<g>` handles translate/rotate).
+ * `part` defaults to `'body'`; stroke-width is applied by the renderer.
+ */
+export type ItemShape =
+  | { part?: ItemPart; el: 'rect'; x: number; y: number; width: number; height: number; rx?: number }
+  | { part?: ItemPart; el: 'line'; x1: number; y1: number; x2: number; y2: number }
+  | { part?: ItemPart; el: 'circle'; cx: number; cy: number; r: number }
+  | { part?: ItemPart; el: 'path'; d: string };
+
+/**
+ * Per-item definition — pure data + geometry, one file per item in
+ * `items/library/<kind>.ts`, registered in `items/registry.ts`. This type stays
+ * free of `$app/*` and component imports so `ops/validate/tests` can use it.
+ * Both hooks are OPTIONAL — omit them for a plain rectangular item:
+ * - `collisionShapes` defaults to the full bbox rectangle (`rectPolys`)
+ * - `view` defaults to a plain rect body (`rectView`)
  */
 export interface ItemDef {
   kind: string;
@@ -37,13 +57,13 @@ export interface ItemDef {
   defaults: { w: number; d: number; minW: number; minD: number };
   /**
    * Local-frame convex polygons (center at 0,0, axis-aligned) that describe
-   * the true collision shape. For now all items return one rectangle; future
+   * the true collision shape. For now all items keep the bbox rectangle; future
    * L/round items return N polys or a dense circle approximation.
    * Each poly is convex so `polygonsIntersect` SAT holds.
    */
-  collisionShapes: (w: number, d: number) => Pt[][];
-  /** AABB used for snap-to-wall / snap-to-sibling. Defaults to bbox of `collisionShapes`. */
-  snapAABB?: (w: number, d: number) => { w: number; d: number };
+  collisionShapes?: (w: number, d: number) => Pt[][];
+  /** Declarative look, drawn by the generic renderer in `FurnitureView`. */
+  view?: (w: number, d: number, scale: number) => ItemShape[];
   /** How `resizeItem` clamps: bbox = free w/d; fixed-aspect = w===d (round). */
   resizeMode?: ResizeMode;
 }

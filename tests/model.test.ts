@@ -14,7 +14,7 @@ import {
   wallAngleDeg,
   wallCorners,
 } from '../src/lib/geometry';
-import { CATALOG, catalogItem } from '../src/lib/model/catalog';
+import { CATALOG, catalogItem } from '../src/lib/items/registry';
 import {
   addRoomItem,
   addWall,

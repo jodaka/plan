@@ -1,6 +1,6 @@
 <script lang="ts">
 import { dist, fmtCm, fmtM2, wallAngleDeg } from '$lib/geometry';
-import { CATALOG, catalogItem } from '$lib/model/catalog';
+import { CATALOG, catalogItem } from '$lib/items/registry';
 import {
   addDoor,
   addWindow,

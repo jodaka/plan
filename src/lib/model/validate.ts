@@ -1,6 +1,6 @@
 import type { DoorMode, PlanDoc, WallDoor, WallWindow } from '../types';
 import { DOOR_MODES, MIN_DOOR_LENGTH, MIN_WINDOW_LENGTH } from '../types';
-import { catalogItem } from './catalog';
+import { catalogItem } from '../items/registry';
 import { dist } from '../geometry';
 
 function isRecord(v: unknown): v is Record<string, unknown> {

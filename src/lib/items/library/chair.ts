@@ -5,19 +5,13 @@ const def: ItemDef = {
   label: 'Chair',
   category: 'living-room',
   defaults: { w: 45, d: 50, minW: 30, minD: 30 },
-  collisionShapes: (w, d) => {
-    const hw = w / 2;
+  view: (w, d) => {
     const hd = d / 2;
     return [
-      [
-        { x: -hw, y: -hd },
-        { x: hw, y: -hd },
-        { x: hw, y: hd },
-        { x: -hw, y: hd },
-      ],
+      { el: 'rect', x: -w / 2, y: -hd, width: w, height: d },
+      { part: 'detail', el: 'rect', x: -w / 2, y: -hd, width: w, height: Math.min(8, d * 0.2) },
     ];
   },
-  resizeMode: 'bbox',
 };
 
 export default def;
