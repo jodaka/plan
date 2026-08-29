@@ -73,6 +73,12 @@ bun test           # unit tests (bun:test, tests/ directory)
   (modes are quadrants relative to the wall axis start→end); doors share the wall axis
   with windows (gaps/floors count both), delete with their wall, show the same amber
   gap hints as windows when selected, and persist as `doc.doors`
+- Ruler: a toolbar tool (Select / Draw wall / Ruler toggle) that measures distances —
+  click places the start point, a second click completes the measurement (live preview
+  with a `fmtCm` label while placing); completed rulers accumulate, may overlap, and
+  stay rendered until Esc or leaving the tool (V/D) clears them; endpoints follow the
+  snap toggle (joints + 1 cm grid); rulers are UI-only (see `ai/decisions.md` §21) —
+  never in the doc, history, or exports
 - Room items (furniture): a categorized library in the side panel (Bedroom: bed,
   double bed · Living room: chair, sofa, table, corner table, L-shaped table, closet,
   floor lamp) rendered as a NAMELESS two-column palette of visual previews —
@@ -143,6 +149,7 @@ src/lib/
     jointDrag.svelte.ts    # joint drag gesture (highlight + opening-floor rejection)
     openingDrag.svelte.ts  # window/door slide + resize gesture (shared wall axis)
     roomDrag.svelte.ts     # rigid room-translation gesture (m² label as handle)
+    ruler.svelte.ts        # ruler tool: two-point measurements (UI-only state)
     itemDrag.svelte.ts     # item move/resize/rotate gesture
     libraryDrop.svelte.ts  # library palette → canvas drop gesture + ghost
   components/

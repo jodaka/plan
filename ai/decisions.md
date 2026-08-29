@@ -572,3 +572,21 @@ generated code, never hand-edited. Key conventions:
 To add a string: append the key to BOTH `messages/*.json`, use `m.<key>()` in the
 component. To add a locale: new `messages/<locale>.json` + list it in
 `project.inlang/settings.json` + extend the Toolbar `Toggle`.
+
+## 21. Ruler tool: UI-only measurements, never in the document
+
+**Decision**: the ruler tool (`Tool = 'ruler'`, `canvas/ruler.svelte.ts`) lets the user
+place any number of independent two-point measurements on the canvas. Rulers are
+transient UI state — module-local `$state.raw` in the gesture module, exactly like
+wall-drawing previews (§2) — and are deliberately NOT part of `PlanDoc`: no
+persistence, no undo entries, no JSON/SVG export, cleared on reload. Rationale: they
+are a measuring aid, not plan data; putting them in the doc would pollute history and
+files for something with no geometric meaning. Completed rulers accumulate (new clicks
+start new rulers; they may overlap); a zero-length click is ignored. Endpoints snap
+with the global snap toggle (joint proximity + 1 cm grid, same resolution as wall
+drawing). Rendering lives on the top overlay layers of Canvas (violet line + endpoint
+dots + `fmtCm` label at the midpoint, HTML overlay for the label). Rulers clear when
+the user presses Esc or leaves the tool (V/D) — enforced by the Canvas `$effect` that
+watches `ui.tool` (same pattern that ends the wall chain) plus the Escape handler.
+The toolbar's Select/Draw control became an N-option `Toggle` (options array) to fit
+the third mode.

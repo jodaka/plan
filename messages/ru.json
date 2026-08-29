@@ -7,6 +7,8 @@
 	"toolbar__importFailed": "Не удалось импортировать: {error}.",
 	"toolbar__drawButton": "Создание стен",
 	"toolbar__drawButtonTitle": "Рисовать стены (D)",
+	"toolbar__rulerButton": "Линейка",
+	"toolbar__rulerButtonTitle": "Измерять расстояния между точками",
 	"toolbar__snapButton": "Привязка",
 	"toolbar__snapButtonTitle": "Привязка к сетке 1 см",
 	"toolbar__gridButton": "Сетка",
@@ -154,5 +156,6 @@
 	"canvas__errorDropOutsideRoom": "Помещайте объекты внутрь комнаты.",
 	"canvas__errorJointMoveRejected": "Перемещение отклонено: стена станет короче своих проёмов (нужно не менее {min} см).",
 	"canvas__bannerDrawNext": "Кликните, чтобы поставить следующий угол · клик по той же точке, правая кнопка или Esc — завершить",
+	"canvas__bannerRuler": "Кликните, чтобы поставить первую точку, ещё клик — измерить · Esc удаляет все линейки",
 	"canvas__bannerEmptyPlan": "Нажмите «Создание стен», затем кликните, чтобы поставить первый угол"
 }

@@ -7,6 +7,8 @@
 	"toolbar__importFailed": "Import failed: {error}.",
 	"toolbar__drawButton": "Draw wall",
 	"toolbar__drawButtonTitle": "Draw walls (D)",
+	"toolbar__rulerButton": "Ruler",
+	"toolbar__rulerButtonTitle": "Measure distances between points",
 	"toolbar__snapButton": "Snap",
 	"toolbar__snapButtonTitle": "Snap to 1 cm grid",
 	"toolbar__gridButton": "Grid",
@@ -154,5 +156,6 @@
   "canvas__errorDropOutsideRoom": "Drop items inside a room.",
   "canvas__errorJointMoveRejected": "Move rejected: a wall would get shorter than its windows/doors (needs at least {min} cm).",
   "canvas__bannerDrawNext": "Click to place next corner · click same point, right-click or Esc to finish",
+  "canvas__bannerRuler": "Click to set the first point, click again to measure · Esc clears all rulers",
   "canvas__bannerEmptyPlan": "Press “Draw wall”, then click to place the first corner"
 }

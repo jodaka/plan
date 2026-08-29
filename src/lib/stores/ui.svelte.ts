@@ -1,6 +1,6 @@
 import type { DoorId, WallId, WindowId } from '../types';
 
-export type Tool = 'select' | 'draw';
+export type Tool = 'select' | 'draw' | 'ruler';
 
 export interface LibraryDrag {
   kind: string;

@@ -13,9 +13,10 @@ import { jointDrag } from '$lib/canvas/jointDrag.svelte';
 import { libraryDrop } from '$lib/canvas/libraryDrop.svelte';
 import { openingDrag } from '$lib/canvas/openingDrag.svelte';
 import { roomDragGesture } from '$lib/canvas/roomDrag.svelte';
+import { ruler } from '$lib/canvas/ruler.svelte';
 import { scene } from '$lib/canvas/scene.svelte';
 import { catalogItem } from '$lib/items/registry';
-import { polygonContainsPoint } from '$lib/geometry';
+import { dist, fmtCm, polygonContainsPoint } from '$lib/geometry';
 import { docBBox } from '$lib/model/ops';
 import { m } from '$lib/paraglide/messages';
 import { plan } from '$lib/stores/plan.svelte';
@@ -37,10 +38,13 @@ let panLast: { x: number; y: number } | null = null;
 
 let fitted = false;
 
-// reset an active wall chain whenever the tool changes away from draw
+// reset an active wall chain / clear rulers whenever the tool changes
 $effect(() => {
   if (ui.tool !== 'draw') {
     drawWall.end();
+  }
+  if (ui.tool !== 'ruler') {
+    ruler.clear();
   }
 });
 
@@ -183,6 +187,10 @@ function onPointerDown(e: PointerEvent) {
     drawWall.pointerDown(world);
     return;
   }
+  if (ui.tool === 'ruler') {
+    ruler.pointerDown(world);
+    return;
+  }
 
   if (jointHit && plan.doc.joints[jointHit]) {
     jointDrag.start(jointHit);
@@ -264,6 +272,7 @@ function onPointerMove(e: PointerEvent) {
     return;
   }
   drawWall.move(world);
+  ruler.move(world);
 }
 
 function onPointerUp(e: PointerEvent) {
@@ -306,6 +315,7 @@ function onKeyDown(e: KeyboardEvent) {
     spaceHeld = true;
   } else if (e.key === 'Escape') {
     drawWall.end();
+    ruler.clear();
     openingDrag.cancel();
     roomDragGesture.cancel();
     itemDragGesture.cancel();
@@ -328,7 +338,7 @@ const cursorClass = $derived.by(() => {
   if (spaceHeld) {
     return 'cursor-grab';
   }
-  if (ui.tool === 'draw') {
+  if (ui.tool === 'draw' || ui.tool === 'ruler') {
     return 'cursor-crosshair';
   }
   return '';
@@ -523,6 +533,27 @@ const cursorClass = $derived.by(() => {
           stroke-width={2 / viewport.scale} />
       {/if}
 
+      <!-- rulers: UI-only measurements, always above the plan -->
+      {#each ruler.rulers as r, i (i)}
+        <g class="ruler" pointer-events="none">
+          <line x1={r.a.x} y1={r.a.y} x2={r.b.x} y2={r.b.y} stroke="#7c3aed" stroke-width={2 / viewport.scale} />
+          <circle cx={r.a.x} cy={r.a.y} r={3 / viewport.scale} fill="#7c3aed" />
+          <circle cx={r.b.x} cy={r.b.y} r={3 / viewport.scale} fill="#7c3aed" />
+        </g>
+      {/each}
+
+      {#if ruler.preview}
+        <line
+          x1={ruler.preview.a.x}
+          y1={ruler.preview.a.y}
+          x2={ruler.preview.b.x}
+          y2={ruler.preview.b.y}
+          stroke="#7c3aed"
+          stroke-width={2 / viewport.scale}
+          stroke-dasharray="{10 / viewport.scale} {8 / viewport.scale}"
+          opacity="0.65" />
+      {/if}
+
       {#if drawWall.active && drawWall.anchor && drawWall.previewEnd}
         <line
           x1={drawWall.anchor.x}
@@ -547,6 +578,15 @@ const cursorClass = $derived.by(() => {
   </svg>
 
   <div class="overlay" aria-hidden="true">
+    {#each ruler.rulers as r, i (i)}
+      {@const mid = viewport.toScreen((r.a.x + r.b.x) / 2, (r.a.y + r.b.y) / 2)}
+      <span class="ruler-label" style:left="{mid.x}px" style:top="{mid.y - 14}px"> {fmtCm(dist(r.a, r.b))} cm </span>
+    {/each}
+    {#if ruler.preview}
+      <span class="ruler-label" style:left="{ruler.preview.label.x}px" style:top="{ruler.preview.label.y}px">
+        {ruler.preview.label.text}
+      </span>
+    {/if}
     {#if drawWall.previewLabel}
       <span class="length-label" style:left="{drawWall.previewLabel.x}px" style:top="{drawWall.previewLabel.y}px">
         {drawWall.previewLabel.text}
@@ -568,6 +608,8 @@ const cursorClass = $derived.by(() => {
 
   {#if drawWall.active}
     <div class="banner">{m.canvas__bannerDrawNext()}</div>
+  {:else if ui.tool === 'ruler'}
+    <div class="banner">{m.canvas__bannerRuler()}</div>
   {:else if Object.keys(plan.doc.walls).length === 0}
     <div class="banner">{m.canvas__bannerEmptyPlan()}</div>
   {/if}
@@ -623,6 +665,17 @@ svg.canvas.cursor-grabbing {
   position: absolute;
   transform: translate(-50%, -50%);
   background: #1e293b;
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 6px;
+  padding: 2px 7px;
+  white-space: nowrap;
+}
+.ruler-label {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  background: #7c3aed;
   color: #ffffff;
   font-size: 12px;
   font-weight: 600;

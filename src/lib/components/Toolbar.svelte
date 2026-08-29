@@ -7,6 +7,7 @@ import { ui } from '$lib/stores/ui.svelte';
 import { viewport } from '$lib/stores/viewport.svelte';
 import { m } from '$lib/paraglide/messages';
 import { setLocale, getLocale } from '$lib/paraglide/runtime';
+import type { Tool } from '$lib/stores/ui.svelte';
 import fitIcon from '$lib/assets/icons/fit.svg?raw';
 import snapToGridIcon from '$lib/assets/icons/snap-to-grid.svg?raw';
 import Toggle from './Toggle.svelte';
@@ -48,7 +49,7 @@ async function onFileChosen(e: Event) {
   ui.select(null);
   viewport.fit(docBBox(res.doc));
 }
-const lang = getLocale();
+const lang = getLocale() as 'en' | 'ru';
 </script>
 
 <div class="toolbar">
@@ -58,24 +59,23 @@ const lang = getLocale();
 
   <div class="group" role="group" aria-label="Lang">
     <Toggle
-      firstLabel="🇬🇧"
-      secondLabel="🇷🇺"
       value={lang}
-      firstValue="en"
-      secondValue="ru"
+      options={[
+        { value: 'en', label: '🇬🇧' },
+        { value: 'ru', label: '🇷🇺' },
+      ]}
       onToggle={(newLang: 'en'|'ru') => setLocale(newLang)} />
   </div>
 
   <div class="group" role="group" aria-label="Tools">
     <Toggle
-      firstLabel={m.toolbar__selectButton()}
-      firstTitle={m.toolbar__selectButtonTitle()}
-      firstValue="select"
-      secondLabel={m.toolbar__drawButton()}
-      secondTitle={m.toolbar__drawButtonTitle()}
-      secondValue="draw"
       value={ui.tool}
-      onToggle={(newTool: 'select'|'draw') => ui.setTool(newTool)} />
+      options={[
+        { value: 'select', label: m.toolbar__selectButton(), title: m.toolbar__selectButtonTitle() },
+        { value: 'draw', label: m.toolbar__drawButton(), title: m.toolbar__drawButtonTitle() },
+        { value: 'ruler', label: m.toolbar__rulerButton(), title: m.toolbar__rulerButtonTitle() },
+      ]}
+      onToggle={(newTool: Tool) => ui.setTool(newTool)} />
   </div>
 
   <div class="group" role="group" aria-label="Snapping">

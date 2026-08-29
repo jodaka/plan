@@ -1,22 +1,12 @@
 <script lang="ts" generics="T extends string">
 let {
   value,
-  firstValue,
-  secondValue,
-  firstLabel,
-  secondLabel,
+  options,
   onToggle,
-  firstTitle = undefined,
-  secondTitle = undefined,
 }: {
   value: T;
-  firstValue: T;
-  secondValue: T;
-  firstLabel: string;
-  secondLabel: string;
+  options: { value: T; label: string; title?: string }[];
   onToggle?: (value: T) => void;
-  firstTitle?: string;
-  secondTitle?: string;
 } = $props();
 
 function handleChange(event: Event) {
@@ -30,22 +20,16 @@ const id = $props.id();
 </script>
 
 <div class="toggle" role="radiogroup">
-  <input
-    class="toggle__input"
-    type="radio"
-    id="{id}-radio-one"
-    value={firstValue}
-    bind:group={value}
-    onchange={handleChange}>
-  <label class="toggle__label" for="{id}-radio-one" title={firstTitle}>{firstLabel}</label>
-  <input
-    class="toggle__input"
-    type="radio"
-    id="{id}-radio-two"
-    value={secondValue}
-    bind:group={value}
-    onchange={handleChange}>
-  <label class="toggle__label" for="{id}-radio-two" title={secondTitle}>{secondLabel}</label>
+  {#each options as opt, i (opt.value)}
+    <input
+      class="toggle__input"
+      type="radio"
+      id="{id}-radio-{i}"
+      value={opt.value}
+      bind:group={value}
+      onchange={handleChange}>
+    <label class="toggle__label" for="{id}-radio-{i}" title={opt.title}>{opt.label}</label>
+  {/each}
 </div>
 
 <style>
