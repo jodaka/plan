@@ -54,7 +54,12 @@ const lang = getLocale() as 'en' | 'ru';
 
 <div class="toolbar">
   <div class="group" role="group" aria-label="Logo">
-    <img class="logo" src="./plan.svg" width="150" height="100%" alt={m.toolbar__logoAlt()}>
+    <img
+      class="logo"
+      src={lang === 'en' ? "./plan_en.svg" : "./plan.svg"}
+      width="150"
+      height="100%"
+      alt={m.toolbar__logoAlt()}>
   </div>
 
   <div class="group" role="group" aria-label="Lang">
