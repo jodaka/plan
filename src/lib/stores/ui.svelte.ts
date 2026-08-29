@@ -20,6 +20,17 @@ let libraryDrag = $state<LibraryDrag | null>(null);
 let errorMsg = $state<string | null>(null);
 let errorTimer: ReturnType<typeof setTimeout> | undefined;
 
+/** what a select* call wants to keep; everything else is cleared */
+type SelectionKind = 'wall' | 'window' | 'door' | 'item' | 'room';
+
+function clearSelection(keep: SelectionKind): void {
+  if (keep !== 'wall') selectedWallId = null;
+  if (keep !== 'window') selectedWindowId = null;
+  if (keep !== 'door') selectedDoorId = null;
+  if (keep !== 'item') selectedItemId = null;
+  if (keep !== 'room') selectedRoomKey = null;
+}
+
 export const ui = {
   get tool(): Tool {
     return tool;
@@ -49,10 +60,7 @@ export const ui = {
   /** Selecting a wall always drops an opening/item/room selection (and vice versa below). */
   select(wallId: WallId | null): void {
     selectedWallId = wallId;
-    selectedWindowId = null;
-    selectedDoorId = null;
-    selectedItemId = null;
-    selectedRoomKey = null;
+    clearSelection('wall');
   },
 
   get selectedWindowId(): WindowId | null {
@@ -61,9 +69,7 @@ export const ui = {
   /** Selects a window (clearing any door/item selection); its wall stays selected as context. */
   selectWindow(id: WindowId | null): void {
     selectedWindowId = id;
-    selectedDoorId = null;
-    selectedItemId = null;
-    selectedRoomKey = null;
+    clearSelection('window');
   },
 
   get selectedDoorId(): DoorId | null {
@@ -72,9 +78,7 @@ export const ui = {
   /** Selects a door (clearing any window/item selection); its wall stays selected as context. */
   selectDoor(id: DoorId | null): void {
     selectedDoorId = id;
-    selectedWindowId = null;
-    selectedItemId = null;
-    selectedRoomKey = null;
+    clearSelection('door');
   },
 
   get selectedItemId(): string | null {
@@ -83,10 +87,7 @@ export const ui = {
   /** Selects a room item (or deselects), clearing every other selection. */
   selectItem(id: string | null): void {
     selectedItemId = id;
-    selectedWallId = null;
-    selectedWindowId = null;
-    selectedDoorId = null;
-    selectedRoomKey = null;
+    clearSelection('item');
   },
 
   get selectedRoomKey(): string | null {
@@ -95,10 +96,7 @@ export const ui = {
   /** Selects a room (by stable key), clearing every other selection; null deselects all. */
   selectRoom(key: string | null): void {
     selectedRoomKey = key;
-    selectedWallId = null;
-    selectedWindowId = null;
-    selectedDoorId = null;
-    selectedItemId = null;
+    clearSelection('room');
   },
 
   get libraryDrag(): LibraryDrag | null {

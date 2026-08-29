@@ -6,6 +6,7 @@ import { deleteDoor, deleteWall, deleteWindow, removeRoomItem } from '$lib/model
 import { catalogLabel, setLabelLocale } from '$lib/items/registry';
 import { saveDoc } from '$lib/model/storage';
 import { getLocale } from '$lib/paraglide/runtime';
+import { m } from '$lib/paraglide/messages';
 import { plan } from '$lib/stores/plan.svelte';
 import { ui } from '$lib/stores/ui.svelte';
 
@@ -25,26 +26,26 @@ $effect(() => {
 function deleteSelected() {
   const winId = ui.selectedWindowId;
   if (winId && plan.doc.windows[winId]) {
-    plan.commit('Delete window', deleteWindow(plan.doc, winId));
+    plan.commit(m.history__deleteWindow(), deleteWindow(plan.doc, winId));
     ui.selectWindow(null); // falls back to the still-selected wall
     return;
   }
   const doorId = ui.selectedDoorId;
   if (doorId && plan.doc.doors[doorId]) {
-    plan.commit('Delete door', deleteDoor(plan.doc, doorId));
+    plan.commit(m.history__deleteDoor(), deleteDoor(plan.doc, doorId));
     ui.selectDoor(null); // falls back to the still-selected wall
     return;
   }
   const itemId = ui.selectedItemId;
   const item = itemId ? plan.doc.roomObjects[itemId] : undefined;
   if (item) {
-    plan.commit(`Delete ${catalogLabel(item.kind)}`, removeRoomItem(plan.doc, item.id));
+    plan.commit(m.history__deleteItem({ label: catalogLabel(item.kind) }), removeRoomItem(plan.doc, item.id));
     ui.selectItem(null);
     return;
   }
   const id = ui.selectedWallId;
   if (!id || !plan.doc.walls[id]) return;
-  plan.commit('Delete wall', deleteWall(plan.doc, id));
+  plan.commit(m.history__deleteWall(), deleteWall(plan.doc, id));
   ui.select(null);
 }
 

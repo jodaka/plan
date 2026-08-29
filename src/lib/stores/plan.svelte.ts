@@ -1,5 +1,6 @@
 import { loadSavedDoc } from '../model/storage';
 import { emptyDoc } from '../model/ops';
+import { m } from '../paraglide/messages';
 import type { PlanDoc } from '../types';
 
 interface HistoryEntry {
@@ -9,7 +10,7 @@ interface HistoryEntry {
 
 const HISTORY_LIMIT = 50;
 
-let entries = $state.raw<HistoryEntry[]>([{ label: 'Start', doc: loadSavedDoc() ?? emptyDoc() }]);
+let entries = $state.raw<HistoryEntry[]>([{ label: m.history__start(), doc: loadSavedDoc() ?? emptyDoc() }]);
 let index = $state(0);
 
 export const plan = {

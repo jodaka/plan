@@ -1,5 +1,5 @@
-import { dist, sub, unit, type Pt } from '../geometry';
-import { catalogItem, clampItemSize } from '../items/registry';
+import { dist, sub, unit, transformPolys, type Pt } from '../geometry';
+import { catalogItem, clampItemSize, collisionPolys } from '../items/registry';
 import {
   DEFAULT_DOOR_LENGTH,
   DEFAULT_THICKNESS,
@@ -750,16 +750,27 @@ export interface BBox {
   maxY: number;
 }
 
+/**
+ * Bounding box of everything drawn: wall joints plus the room items'
+ * collision shapes (collision shapes cover the full drawn outline — keep
+ * them so, or the bbox — and the SVG export viewport — will crop items).
+ * Returns null for an empty plan.
+ */
 export function docBBox(doc: PlanDoc): BBox | null {
   let minX = Infinity;
   let minY = Infinity;
   let maxX = -Infinity;
   let maxY = -Infinity;
-  for (const j of Object.values(doc.joints)) {
-    if (j.x < minX) minX = j.x;
-    if (j.y < minY) minY = j.y;
-    if (j.x > maxX) maxX = j.x;
-    if (j.y > maxY) maxY = j.y;
+  const grow = (x: number, y: number) => {
+    if (x < minX) minX = x;
+    if (y < minY) minY = y;
+    if (x > maxX) maxX = x;
+    if (y > maxY) maxY = y;
+  };
+  for (const j of Object.values(doc.joints)) grow(j.x, j.y);
+  for (const o of Object.values(doc.roomObjects)) {
+    const polys = transformPolys(collisionPolys(o.kind, o.w, o.d), o.x, o.y, o.rotation);
+    for (const poly of polys) for (const p of poly) grow(p.x, p.y);
   }
   return minX === Infinity ? null : { minX, minY, maxX, maxY };
 }

@@ -71,7 +71,7 @@ export function parseImport(text: string): ImportResult {
 }
 
 /** Local timestamp, filename-safe (no colons): 2026-08-25_14-30-05 */
-function fileStamp(): string {
+export function fileStamp(): string {
   const d = new Date();
   const p = (n: number) => String(n).padStart(2, '0');
   return (
@@ -80,15 +80,20 @@ function fileStamp(): string {
   );
 }
 
-export function downloadPlan(doc: PlanDoc): void {
+/** Triggers a browser download of `blob` under `filename` (client-only). */
+export function downloadBlob(filename: string, blob: Blob): void {
   if (typeof document === 'undefined') return;
-  const blob = new Blob([serializeExport(doc)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `floorplan_${fileStamp()}.json`;
+  a.download = filename;
   document.body.appendChild(a);
   a.click();
   a.remove();
   URL.revokeObjectURL(url);
+}
+
+export function downloadPlan(doc: PlanDoc): void {
+  const blob = new Blob([serializeExport(doc)], { type: 'application/json' });
+  downloadBlob(`floorplan_${fileStamp()}.json`, blob);
 }

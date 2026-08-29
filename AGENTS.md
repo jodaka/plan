@@ -134,9 +134,19 @@ src/lib/
   stores/
     plan.svelte.ts         # doc + history: commit(label, doc)/undo/redo, $state.raw
     viewport.svelte.ts     # scale/pan, toWorld/toScreen, zoomAt/fit, clamps
-    ui.svelte.ts           # tool, snap/grid toggles, selectedWallId
+    ui.svelte.ts           # tool, snap/grid toggles, selection ids, error toast
+  canvas/
+    drafts.svelte.ts       # transient drag previews: joint/opening/item overrides
+    scene.svelte.ts        # THE derivation core (renderJoints, rooms — the single
+                           # findRooms call site — walls, openings, items, overlays)
+    drawWall.svelte.ts     # wall-chain drawing gesture
+    jointDrag.svelte.ts    # joint drag gesture (highlight + opening-floor rejection)
+    openingDrag.svelte.ts  # window/door slide + resize gesture (shared wall axis)
+    roomDrag.svelte.ts     # rigid room-translation gesture (m² label as handle)
+    itemDrag.svelte.ts     # item move/resize/rotate gesture
+    libraryDrop.svelte.ts  # library palette → canvas drop gesture + ghost
   components/
-    Canvas.svelte          # svg, pointer/wheel/keyboard gestures, drafts, top layers
+    Canvas.svelte          # svg, hit-testing + gesture dispatch, pan/zoom, top layers
     WallView.svelte        # wall body + invisible fat hit-line (corner extension math)
     WindowView.svelte      # window frame + glass on its wall + invisible hit area
     DoorView.svelte        # door jamb frame + swing leaf/arc + invisible hit area
@@ -156,7 +166,7 @@ tests/                     # bun:test unit tests: model (geometry + ops), rooms,
 1. Document mutations ONLY via pure functions in `model/ops.ts`; never mutate a `PlanDoc`.
    New state enters history exclusively through `plan.commit(label, doc)`.
 2. Commits happen at gesture end, never per pointermove; transient drag previews live in
-   Canvas `drafts` (`$state.raw`), merged into rendering only.
+   `lib/canvas/drafts.svelte.ts` (`$state.raw`), merged into rendering only.
 3. 1 world unit = 1 cm; snap to integers when snap is on; never persist −0; render
    lengths/angles only through `fmtCm` (mm precision).
 4. `src/lib/**` internal imports are RELATIVE (bun test has no path aliases);

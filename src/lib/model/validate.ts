@@ -1,4 +1,4 @@
-import type { DoorMode, PlanDoc, WallDoor, WallWindow } from '../types';
+import type { DoorMode, PlanDoc } from '../types';
 import { DOOR_MODES, MIN_DOOR_LENGTH, MIN_WINDOW_LENGTH } from '../types';
 import { catalogItem } from '../items/registry';
 import { dist } from '../geometry';
@@ -9,6 +9,36 @@ function isRecord(v: unknown): v is Record<string, unknown> {
 
 function num(v: unknown): v is number {
   return typeof v === 'number' && Number.isFinite(v);
+}
+
+interface OpeningParts {
+  wallId: string;
+  offset: number;
+  length: number;
+}
+
+/**
+ * Shared window/door repair (both kinds live on the wall axis with the same
+ * shape rules): entry shape check, surviving-wall lookup, then clamping the
+ * length to [minLength, wallLen] and the offset into the remaining span.
+ * Returns null for entries that must be culled.
+ */
+function sanitizeOpening(
+  raw: unknown,
+  walls: PlanDoc['walls'],
+  joints: PlanDoc['joints'],
+  minLength: number,
+): OpeningParts | null {
+  if (!isRecord(raw) || typeof raw.wallId !== 'string' || !num(raw.offset) || !num(raw.length)) return null;
+  const wall = walls[raw.wallId];
+  if (!wall) return null;
+  const a = joints[wall.startJointId];
+  const b = joints[wall.endJointId];
+  if (!a || !b) return null;
+  const wallLen = dist(a, b);
+  const length = Math.max(minLength, Math.min(wallLen, raw.length));
+  const offset = Math.max(0, Math.min(Math.max(0, wallLen - length), raw.offset));
+  return { wallId: raw.wallId, offset, length };
 }
 
 /**
@@ -71,39 +101,23 @@ export function sanitizeDoc(data: unknown): PlanDoc | null {
     }
   }
 
-  // windows/doors: must reference a surviving wall and sit inside its span
+  // windows/doors: must reference a surviving wall and sit inside its span —
+  // identical shape rules for both kinds, so one shared helper validates them
   const windows: PlanDoc['windows'] = {};
   if (isRecord(data.windows)) {
     for (const [id, w] of Object.entries(data.windows)) {
-      if (!isRecord(w) || typeof w.wallId !== 'string' || !num(w.offset) || !num(w.length)) continue;
-      const wall = walls[w.wallId];
-      if (!wall) continue;
-      const a = joints[wall.startJointId];
-      const b = joints[wall.endJointId];
-      if (!a || !b) continue;
-      const wallLen = dist(a, b);
-      const length = Math.max(MIN_WINDOW_LENGTH, Math.min(wallLen, w.length));
-      const offset = Math.max(0, Math.min(Math.max(0, wallLen - length), w.offset));
-      const win: WallWindow = { id, wallId: w.wallId, offset, length };
-      windows[id] = win;
+      const parts = sanitizeOpening(w, walls, joints, MIN_WINDOW_LENGTH);
+      if (parts) windows[id] = { id, ...parts };
     }
   }
 
   const doors: PlanDoc['doors'] = {};
   if (isRecord(data.doors)) {
     for (const [id, d] of Object.entries(data.doors)) {
-      if (!isRecord(d) || typeof d.wallId !== 'string' || !num(d.offset) || !num(d.length)) continue;
-      const wall = walls[d.wallId];
-      if (!wall) continue;
-      const a = joints[wall.startJointId];
-      const b = joints[wall.endJointId];
-      if (!a || !b) continue;
-      const wallLen = dist(a, b);
-      const length = Math.max(MIN_DOOR_LENGTH, Math.min(wallLen, d.length));
-      const offset = Math.max(0, Math.min(Math.max(0, wallLen - length), d.offset));
-      const mode: DoorMode = DOOR_MODES.includes(d.mode as DoorMode) ? (d.mode as DoorMode) : 'none';
-      const door: WallDoor = { id, wallId: d.wallId, offset, length, mode };
-      doors[id] = door;
+      const parts = sanitizeOpening(d, walls, joints, MIN_DOOR_LENGTH);
+      if (!parts) continue;
+      const mode: DoorMode = isRecord(d) && DOOR_MODES.includes(d.mode as DoorMode) ? (d.mode as DoorMode) : 'none';
+      doors[id] = { id, ...parts, mode };
     }
   }
   // optional room names: non-empty strings only, keyed by stable room keys

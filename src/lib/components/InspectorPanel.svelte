@@ -24,7 +24,8 @@ import {
   wallsAtJoint,
   windowsOnWall,
 } from '$lib/model/ops';
-import { findRooms, roomObjectsIn } from '$lib/model/rooms';
+import { scene } from '$lib/canvas/scene.svelte';
+import { roomObjectsIn } from '$lib/model/rooms';
 import { m } from '$lib/paraglide/messages';
 import { plan } from '$lib/stores/plan.svelte';
 import { ui } from '$lib/stores/ui.svelte';
@@ -37,7 +38,7 @@ const item = $derived(ui.selectedItemId ? plan.doc.roomObjects[ui.selectedItemId
 const room = $derived.by(() => {
   const key = ui.selectedRoomKey;
   if (!key) return undefined;
-  return findRooms(plan.doc.joints, plan.doc.walls).find((r) => r.key === key);
+  return scene.rooms.find((r) => r.key === key);
 });
 const length = $derived(wall ? dist(plan.doc.joints[wall.startJointId], plan.doc.joints[wall.endJointId]) : 0);
 const angle = $derived(wall ? wallAngleDeg(plan.doc.joints[wall.startJointId], plan.doc.joints[wall.endJointId]) : 0);
@@ -45,11 +46,11 @@ const angle = $derived(wall ? wallAngleDeg(plan.doc.joints[wall.startJointId], p
 const dims = $derived.by(() => {
   if (!wall) return null;
   const halfNeighbor = (jid: string) => {
-    let m = 0;
+    let half = 0;
     for (const o of wallsAtJoint(plan.doc, jid)) {
-      if (o.id !== wall.id) m = Math.max(m, o.thickness);
+      if (o.id !== wall.id) half = Math.max(half, o.thickness);
     }
-    return m / 2;
+    return half / 2;
   };
   const es = halfNeighbor(wall.startJointId);
   const ee = halfNeighbor(wall.endJointId);
@@ -95,7 +96,7 @@ function applyLength(value: number) {
     ui.showError(m.inspector__wallLengthError({ min: fmtCm(dims?.minInner ?? MIN_WALL_LENGTH) }));
     return;
   }
-  plan.commit(m.inspector__commitChangeWallLength(), candidate);
+  plan.commit(m.history__changeWallLength(), candidate);
 }
 
 function applyThickness(value: number) {
@@ -106,7 +107,7 @@ function applyThickness(value: number) {
     ui.showError(m.inspector__thicknessError());
     return;
   }
-  plan.commit(m.inspector__commitChangeThickness(), candidate);
+  plan.commit(m.history__changeThickness(), candidate);
 }
 
 function addWindowToWall() {
@@ -116,7 +117,7 @@ function addWindowToWall() {
     ui.showError(m.inspector__windowSpaceError({ min: fmtCm(MIN_WINDOW_LENGTH) }));
     return;
   }
-  plan.commit(m.inspector__commitAddWindow(), res.doc);
+  plan.commit(m.history__addWindow(), res.doc);
   ui.select(res.window.wallId);
   ui.selectWindow(res.window.id);
 }
@@ -128,71 +129,71 @@ function addDoorToWall() {
     ui.showError(m.inspector__doorSpaceError({ min: fmtCm(MIN_DOOR_LENGTH) }));
     return;
   }
-  plan.commit(m.inspector__commitAddDoor(), res.doc);
+  plan.commit(m.history__addDoor(), res.doc);
   ui.select(res.door.wallId);
   ui.selectDoor(res.door.id);
 }
 
 function applyWindowLength(value: number) {
   if (!win || !Number.isFinite(value)) return;
-  plan.commit(m.inspector__commitResizeWindow(), setWindowLength(plan.doc, win.id, value));
+  plan.commit(m.history__resizeWindow(), setWindowLength(plan.doc, win.id, value));
 }
 
 function applyDoorLength(value: number) {
   if (!door || !Number.isFinite(value)) return;
-  plan.commit(m.inspector__commitResizeDoor(), setDoorLength(plan.doc, door.id, value));
+  plan.commit(m.history__resizeDoor(), setDoorLength(plan.doc, door.id, value));
 }
 
 function toggleDoorMode() {
   if (!door) return;
-  plan.commit(m.inspector__commitChangeDoorSwing(), cycleDoorMode(plan.doc, door.id));
+  plan.commit(m.history__changeDoorSwing(), cycleDoorMode(plan.doc, door.id));
 }
 
 function removeDoor() {
   if (!door) return;
-  plan.commit(m.inspector__commitDeleteDoor(), deleteDoor(plan.doc, door.id));
+  plan.commit(m.history__deleteDoor(), deleteDoor(plan.doc, door.id));
   ui.selectDoor(null); // falls back to the still-selected wall
 }
 
 function removeWindow() {
   if (!win) return;
-  plan.commit(m.inspector__commitDeleteWindow(), deleteWindow(plan.doc, win.id));
+  plan.commit(m.history__deleteWindow(), deleteWindow(plan.doc, win.id));
   ui.selectWindow(null);
 }
 
 function applyItemSize(w: number, d: number) {
   if (!item || !Number.isFinite(w) || !Number.isFinite(d)) return;
-  plan.commit(m.inspector__commitResizeItem({ label: catalogLabel(item.kind) }), resizeItem(plan.doc, item.id, w, d));
+  plan.commit(m.history__resizeItem({ label: catalogLabel(item.kind) }), resizeItem(plan.doc, item.id, w, d));
 }
 
 function applyItemRotation(deg: number) {
   if (!item || !Number.isFinite(deg)) return;
-  plan.commit(m.inspector__commitRotateItem({ label: catalogLabel(item.kind) }), rotateItem(plan.doc, item.id, deg));
+  plan.commit(m.history__rotateItem({ label: catalogLabel(item.kind) }), rotateItem(plan.doc, item.id, deg));
 }
 
 function removeItem() {
   if (!item) return;
-  plan.commit(m.inspector__commitDeleteItem({ label: catalogLabel(item.kind) }), removeRoomItem(plan.doc, item.id));
+  plan.commit(m.history__deleteItem({ label: catalogLabel(item.kind) }), removeRoomItem(plan.doc, item.id));
   ui.selectItem(null);
 }
 
 function applyRoomName(name: string) {
   if (!room) return;
-  plan.commit(m.inspector__commitRenameRoom(), renameRoom(plan.doc, room.key, name));
+  plan.commit(m.history__renameRoom(), renameRoom(plan.doc, room.key, name));
 }
 
 function remove() {
   if (!wall) return;
   // destroying a room orphans its bound entities (furniture, …) — warn before
   // the fact; windows/doors die WITH their wall by design
-  const rooms = findRooms(plan.doc.joints, plan.doc.walls).filter((r) => r.wallIds.includes(wall.id));
+  const rooms = scene.rooms.filter((r) => r.wallIds.includes(wall.id));
   const objects = rooms.reduce((n, r) => n + Object.keys(roomObjectsIn(plan.doc, r.key)).length, 0);
   if (
     (rooms.length > 0 || wallWins.length > 0 || wallDoors.length > 0) &&
     !confirm(confirmMessage(rooms.length, objects, wallWins.length, wallDoors.length))
   )
     return;
-  plan.commit(m.inspector__commitDeleteWall(), deleteWall(plan.doc, wall.id));
+  plan.commit(m.history__deleteWall(), deleteWall(plan.doc, wall.id));
   ui.select(null);
 }
 

@@ -35,6 +35,12 @@ export const viewport = {
   get zoomPct(): number {
     return (scale / BASE_PX_PER_CM) * 100;
   },
+  get viewW(): number {
+    return viewW;
+  },
+  get viewH(): number {
+    return viewH;
+  },
 
   setViewSize(w: number, h: number): void {
     viewW = w;

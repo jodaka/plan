@@ -39,7 +39,7 @@ async function onFileChosen(e: Event) {
     window.alert(m.toolbar__importFailed({ error: res.error }));
     return;
   }
-  plan.commit('Import plan', res.doc);
+  plan.commit(m.history__importPlan(), res.doc);
   ui.setTool('select');
   ui.select(null);
   viewport.fit(docBBox(res.doc));

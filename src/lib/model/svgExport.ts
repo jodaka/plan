@@ -1,5 +1,5 @@
-import { transformPolys } from '../geometry';
-import { collisionPolys } from '../items/registry';
+import { docBBox } from './ops';
+import { downloadBlob, fileStamp } from './io';
 import type { PlanDoc } from '../types';
 
 const PX_PER_CM = 15;
@@ -46,39 +46,14 @@ export function downloadSvg(doc: PlanDoc): void {
     }
   }
 
-  let minX = Infinity;
-  let minY = Infinity;
-  let maxX = -Infinity;
-  let maxY = -Infinity;
-  for (const j of Object.values(doc.joints)) {
-    if (j.x < minX) minX = j.x;
-    if (j.y < minY) minY = j.y;
-    if (j.x > maxX) maxX = j.x;
-    if (j.y > maxY) maxY = j.y;
-  }
-  // NOTE: the viewport is derived from COLLISION shapes — keep collision shapes
-  // covering the full drawn outline (see corner-table comment) or the export
-  // will crop the visible shape.
-  for (const obj of Object.values(doc.roomObjects)) {
-    const polys = transformPolys(collisionPolys(obj.kind, obj.w, obj.d), obj.x, obj.y, obj.rotation);
-    for (const poly of polys)
-      for (const p of poly) {
-        if (p.x < minX) minX = p.x;
-        if (p.y < minY) minY = p.y;
-        if (p.x > maxX) maxX = p.x;
-        if (p.y > maxY) maxY = p.y;
-      }
-  }
-  const hasContent = Number.isFinite(minX) && Number.isFinite(minY);
-  if (hasContent) {
+  const bbox = docBBox(doc);
+  if (bbox) {
     const maxT = Math.max(0, ...Object.values(doc.walls).map((w) => w.thickness));
     const outerPad = 20 + maxT / 2;
-    minX -= outerPad;
-    minY -= outerPad;
-    maxX += outerPad;
-    maxY += outerPad;
-    const w = maxX - minX;
-    const h = maxY - minY;
+    const minX = bbox.minX - outerPad;
+    const minY = bbox.minY - outerPad;
+    const w = bbox.maxX - bbox.minX + outerPad * 2;
+    const h = bbox.maxY - bbox.minY + outerPad * 2;
     clone.setAttribute('viewBox', `${minX} ${minY} ${w} ${h}`);
     clone.setAttribute('width', String(w * PX_PER_CM));
     clone.setAttribute('height', String(h * PX_PER_CM));
@@ -104,15 +79,5 @@ export function downloadSvg(doc: PlanDoc): void {
   const serializer = new XMLSerializer();
   const source = serializer.serializeToString(clone);
   const blob = new Blob([source], { type: 'image/svg+xml;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  const pad = (n: number) => String(n).padStart(2, '0');
-  const d = new Date();
-  const stamp = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}_${pad(d.getHours())}-${pad(d.getMinutes())}-${pad(d.getSeconds())}`;
-  a.download = `floorplan_${stamp}.svg`;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
+  downloadBlob(`floorplan_${fileStamp()}.svg`, blob);
 }
