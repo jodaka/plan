@@ -20,7 +20,9 @@ function exportPlan() {
 function importClicked() {
   if (Object.keys(plan.doc.walls).length > 0) {
     const saveFirst = window.confirm(m.toolbar__importClickConfirmation());
-    if (saveFirst) downloadPlan(plan.doc);
+    if (saveFirst) {
+      downloadPlan(plan.doc);
+    }
   }
   fileInput?.click();
 }
@@ -33,7 +35,9 @@ async function onFileChosen(e: Event) {
   const input = e.currentTarget as HTMLInputElement;
   const file = input.files?.[0];
   input.value = ''; // allow re-choosing the same file later
-  if (!file) return;
+  if (!file) {
+    return;
+  }
   const res = parseImport(await file.text());
   if (!res.ok) {
     window.alert(m.toolbar__importFailed({ error: res.error }));

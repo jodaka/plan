@@ -32,16 +32,19 @@ const findItemView = (id: string) => scene.renderItems.find((i) => i.obj.id === 
 /** wall faces of the item's room (axis-aligned edges only) as snap targets */
 function itemSnapWalls(view: RenderItem): SnapSegment[] {
   const room = scene.rooms.find((r) => r.key === view.obj.roomId);
-  if (!room) return [];
+  if (!room) {
+    return [];
+  }
   const segs: SnapSegment[] = [];
   const p = room.innerPts;
   for (let i = 0; i < p.length; i++) {
     const a = p[i];
     const b = p[(i + 1) % p.length];
-    if (Math.abs(a.x - b.x) < 1e-6)
+    if (Math.abs(a.x - b.x) < 1e-6) {
       segs.push({ axis: 'x', value: a.x, from: Math.min(a.y, b.y), to: Math.max(a.y, b.y) });
-    else if (Math.abs(a.y - b.y) < 1e-6)
+    } else if (Math.abs(a.y - b.y) < 1e-6) {
       segs.push({ axis: 'y', value: a.y, from: Math.min(a.x, b.x), to: Math.max(a.x, b.x) });
+    }
   }
   return segs;
 }
@@ -55,13 +58,17 @@ export const itemDragGesture = {
   },
   startMove(id: string, world: Pt): void {
     const view = findItemView(id);
-    if (!view) return;
+    if (!view) {
+      return;
+    }
     ui.selectItem(id);
     itemDrag = { kind: 'move', id, grabX: world.x - view.obj.x, grabY: world.y - view.obj.y };
   },
   startResize(id: string, corner: number): void {
     const view = findItemView(id);
-    if (!view) return;
+    if (!view) {
+      return;
+    }
     ui.selectItem(id);
     const { obj } = view;
     const sx: 1 | -1 = corner === 0 || corner === 3 ? -1 : 1;
@@ -72,12 +79,16 @@ export const itemDragGesture = {
   },
   startRotate(id: string): void {
     const view = findItemView(id);
-    if (!view) return;
+    if (!view) {
+      return;
+    }
     ui.selectItem(id);
     itemDrag = { kind: 'rotate', id };
   },
   apply(world: Pt): void {
-    if (!itemDrag) return;
+    if (!itemDrag) {
+      return;
+    }
     const drag = itemDrag;
     const view = findItemView(drag.id);
     if (!view) {
@@ -135,10 +146,13 @@ export const itemDragGesture = {
       ui.showError(m.canvas__errorItemInvalid({ label }));
       return;
     }
-    if (drag.kind === 'move') plan.commit(m.history__moveItem({ label }), moveItem(plan.doc, obj.id, obj.x, obj.y));
-    else if (drag.kind === 'resize')
+    if (drag.kind === 'move') {
+      plan.commit(m.history__moveItem({ label }), moveItem(plan.doc, obj.id, obj.x, obj.y));
+    } else if (drag.kind === 'resize') {
       plan.commit(m.history__resizeItem({ label }), resizeItem(plan.doc, obj.id, obj.w, obj.d));
-    else plan.commit(m.history__rotateItem({ label }), rotateItem(plan.doc, obj.id, obj.rotation));
+    } else {
+      plan.commit(m.history__rotateItem({ label }), rotateItem(plan.doc, obj.id, obj.rotation));
+    }
   },
   cancel(): void {
     itemDrag = null;

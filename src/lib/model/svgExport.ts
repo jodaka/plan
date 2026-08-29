@@ -5,9 +5,13 @@ import type { PlanDoc } from '../types';
 const PX_PER_CM = 15;
 
 export function downloadSvg(doc: PlanDoc): void {
-  if (typeof document === 'undefined' || typeof window === 'undefined') return;
+  if (typeof document === 'undefined' || typeof window === 'undefined') {
+    return;
+  }
   const svg = document.querySelector('svg.canvas') as SVGSVGElement | null;
-  if (!svg) return;
+  if (!svg) {
+    return;
+  }
   const clone = svg.cloneNode(true) as SVGSVGElement;
   clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
   clone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
@@ -17,25 +21,32 @@ export function downloadSvg(doc: PlanDoc): void {
   while (origStack.length > 0) {
     const orig = origStack.pop();
     const copy = cloneStack.pop();
-    if (!orig || !copy) continue;
+    if (!orig || !copy) {
+      continue;
+    }
     const computed = getComputedStyle(orig);
     const parts: string[] = [];
     for (let i = 0; i < computed.length; i++) {
       const prop = computed[i];
-      if (!prop) continue;
+      if (!prop) {
+        continue;
+      }
       if (
         prop === 'transform' ||
         prop === 'translate' ||
         prop === 'scale' ||
         prop === 'rotate' ||
         prop === 'transform-origin'
-      )
+      ) {
         continue;
+      }
       const value = computed.getPropertyValue(prop);
       const priority = computed.getPropertyPriority(prop);
       parts.push(`${prop}:${value}${priority ? ` !${priority}` : ''}`);
     }
-    if (parts.length > 0) copy.setAttribute('style', parts.join(';'));
+    if (parts.length > 0) {
+      copy.setAttribute('style', parts.join(';'));
+    }
     for (let i = orig.children.length - 1; i >= 0; i--) {
       const oc = orig.children[i];
       const cc = copy.children[i];
@@ -61,7 +72,9 @@ export function downloadSvg(doc: PlanDoc): void {
     const g = clone.querySelector('g');
     if (g) {
       g.removeAttribute('transform');
-      for (const el of g.querySelectorAll('line[stroke="#e2e8f0"]')) el.remove();
+      for (const el of g.querySelectorAll('line[stroke="#e2e8f0"]')) {
+        el.remove();
+      }
       const bg = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
       bg.setAttribute('x', String(minX));
       bg.setAttribute('y', String(minY));
@@ -73,7 +86,9 @@ export function downloadSvg(doc: PlanDoc): void {
     }
   } else {
     const vb = svg.getAttribute('viewBox');
-    if (vb) clone.setAttribute('viewBox', vb);
+    if (vb) {
+      clone.setAttribute('viewBox', vb);
+    }
   }
 
   const serializer = new XMLSerializer();

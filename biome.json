@@ -26,6 +26,9 @@
       "complexity": {
         "noForEach": "off"
       },
+      "style": {
+        "useBlockStatements": "error"
+      },
       "a11y": {
         "useValidLang": "warn",
         "useAnchorContent": "off",

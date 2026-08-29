@@ -41,7 +41,9 @@ const hitPts = $derived(quad(p1, p2, h + 6 / scale));
 // quarter-circle arc from its tip back to the other jamb.
 // Mode letters: 't'/'b' (first) = cross-wall side, 'l'/'r' (second) = hinge jamb
 const swing = $derived.by(() => {
-  if (mode === 'none') return null;
+  if (mode === 'none') {
+    return null;
+  }
   const hinge = mode.endsWith('l') ? p1 : p2;
   const other = mode.endsWith('l') ? p2 : p1;
   const dir = mode.startsWith('t') ? mul(n, -1) : n;

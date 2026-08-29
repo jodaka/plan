@@ -58,7 +58,9 @@ export const viewport = {
   /** Zooms keeping the world point under screen (px, py) fixed. */
   zoomAt(px: number, py: number, factor: number): void {
     const next = clampScale(scale * factor);
-    if (next === scale) return;
+    if (next === scale) {
+      return;
+    }
     const k = next / scale;
     tx = px - (px - tx) * k;
     ty = py - (py - ty) * k;

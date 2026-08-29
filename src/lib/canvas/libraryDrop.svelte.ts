@@ -31,7 +31,9 @@ let itemGhost = $state<ItemGhost | null>(null);
  * sit fully inside a room without touching walls */
 function dropInfo(kind: string, world: Pt): { room: Room | null; valid: boolean } {
   const room = scene.rooms.find((r) => polygonContainsPoint(r.pts, world)) ?? null;
-  if (!room) return { room: null, valid: false };
+  if (!room) {
+    return { room: null, valid: false };
+  }
   const cat = catalogItem(kind);
   const local = collisionPolys(kind, cat.w, cat.d);
   const worldPolys = transformPolys(local, world.x, world.y, 0);

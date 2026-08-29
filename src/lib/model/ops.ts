@@ -70,7 +70,9 @@ export function addWall(
   b: Pt,
   opts?: { thickness?: number; attachTolCm?: number },
 ): AddWallResult {
-  if (dist(a, b) < MIN_WALL_LENGTH) return { doc, wallId: null };
+  if (dist(a, b) < MIN_WALL_LENGTH) {
+    return { doc, wallId: null };
+  }
 
   const thickness = clampThickness(opts?.thickness ?? DEFAULT_THICKNESS);
   const tol = opts?.attachTolCm ?? 0;
@@ -78,14 +80,18 @@ export function addWall(
   const joints = { ...doc.joints };
   const resolve = (p: Pt): Joint => {
     const existing = tol > 0 ? findJointNear(doc, p, tol) : null;
-    if (existing) return existing;
+    if (existing) {
+      return existing;
+    }
     const j: Joint = { id: newId(), x: p.x, y: p.y };
     joints[j.id] = j;
     return j;
   };
   const start = resolve(a);
   const end = resolve(b);
-  if (start.id === end.id) return { doc, wallId: null };
+  if (start.id === end.id) {
+    return { doc, wallId: null };
+  }
 
   const wall: Wall = {
     id: newId(),
@@ -99,21 +105,27 @@ export function addWall(
 
 export function moveJoint(doc: PlanDoc, jointId: JointId, p: Pt): PlanDoc {
   const j = doc.joints[jointId];
-  if (!j || (j.x === p.x && j.y === p.y)) return doc;
+  if (!j || (j.x === p.x && j.y === p.y)) {
+    return doc;
+  }
   const joints = { ...doc.joints, [jointId]: { ...j, x: p.x, y: p.y } };
   // attached walls changed length — keep their openings inside (offsets stay
   // put while they fit, else clamp flush to the nearest wall end)
   let windows = doc.windows;
   let doors = doc.doors;
   for (const w of Object.values(doc.walls)) {
-    if (w.startJointId !== jointId && w.endJointId !== jointId) continue;
+    if (w.startJointId !== jointId && w.endJointId !== jointId) {
+      continue;
+    }
     ({ windows, doors } = clampWallOpenings(windows, doors, w, joints));
   }
   return copyDoc(doc, { joints, windows, doors });
 }
 
 export function clampThickness(t: number): number {
-  if (!Number.isFinite(t)) return DEFAULT_THICKNESS;
+  if (!Number.isFinite(t)) {
+    return DEFAULT_THICKNESS;
+  }
   return Math.min(MAX_THICKNESS, Math.max(MIN_THICKNESS, t));
 }
 
@@ -137,24 +149,36 @@ export function jointExtCm(doc: PlanDoc, wallId: WallId, jid: JointId): number {
  */
 function outwardAxisAt(doc: PlanDoc, wallId: WallId, jid: JointId): Pt | null {
   const j = doc.joints[jid];
-  if (!j) return null;
+  if (!j) {
+    return null;
+  }
   let x = 0;
   let y = 0;
   let count = 0;
   for (const o of Object.values(doc.walls)) {
-    if (o.id === wallId) continue;
-    if (o.startJointId !== jid && o.endJointId !== jid) continue;
+    if (o.id === wallId) {
+      continue;
+    }
+    if (o.startJointId !== jid && o.endJointId !== jid) {
+      continue;
+    }
     const oid = o.startJointId === jid ? o.endJointId : o.startJointId;
     const oj = doc.joints[oid];
-    if (!oj) continue;
+    if (!oj) {
+      continue;
+    }
     const v = unit(sub(j, oj));
     x += v.x;
     y += v.y;
     count++;
   }
-  if (count === 0) return null;
+  if (count === 0) {
+    return null;
+  }
   const l = Math.hypot(x, y);
-  if (l < 1e-9) return null;
+  if (l < 1e-9) {
+    return null;
+  }
   return { x: x / l, y: y / l };
 }
 
@@ -168,9 +192,13 @@ function outwardAxisAt(doc: PlanDoc, wallId: WallId, jid: JointId): Pt | null {
  */
 export function setThickness(doc: PlanDoc, wallId: WallId, thickness: number): PlanDoc {
   const w = doc.walls[wallId];
-  if (!w) return doc;
+  if (!w) {
+    return doc;
+  }
   const t = clampThickness(thickness);
-  if (w.thickness === t) return doc;
+  if (w.thickness === t) {
+    return doc;
+  }
 
   let next = doc;
   const delta = (t - w.thickness) / 2;
@@ -191,15 +219,21 @@ export function setThickness(doc: PlanDoc, wallId: WallId, thickness: number): P
 /** Sets wall length by moving its end joint along the current direction. */
 export function setLength(doc: PlanDoc, wallId: WallId, lengthCm: number): PlanDoc {
   const w = doc.walls[wallId];
-  if (!w) return doc;
+  if (!w) {
+    return doc;
+  }
   const a = doc.joints[w.startJointId];
   const b = doc.joints[w.endJointId];
-  if (!a || !b) return doc;
+  if (!a || !b) {
+    return doc;
+  }
   const l = Math.max(MIN_WALL_LENGTH, lengthCm);
   const vx = b.x - a.x;
   const vy = b.y - a.y;
   const cur = Math.hypot(vx, vy);
-  if (cur === 0) return doc;
+  if (cur === 0) {
+    return doc;
+  }
   const k = l / cur;
   return moveJoint(doc, w.endJointId, { x: a.x + vx * k, y: a.y + vy * k });
 }
@@ -211,7 +245,9 @@ export function setLength(doc: PlanDoc, wallId: WallId, lengthCm: number): PlanD
  */
 export function setInnerLength(doc: PlanDoc, wallId: WallId, innerCm: number): PlanDoc {
   const w = doc.walls[wallId];
-  if (!w) return doc;
+  if (!w) {
+    return doc;
+  }
   const extS = jointExtCm(doc, wallId, w.startJointId);
   const extE = jointExtCm(doc, wallId, w.endJointId);
   return setLength(doc, wallId, innerCm + extS + extE);
@@ -224,7 +260,9 @@ export function setInnerLength(doc: PlanDoc, wallId: WallId, innerCm: number): P
  * deletes user data. */
 export function deleteWall(doc: PlanDoc, wallId: WallId): PlanDoc {
   const w = doc.walls[wallId];
-  if (!w) return doc;
+  if (!w) {
+    return doc;
+  }
   const walls = { ...doc.walls };
   delete walls[wallId];
   const used = new Set<JointId>();
@@ -234,15 +272,21 @@ export function deleteWall(doc: PlanDoc, wallId: WallId): PlanDoc {
   }
   const joints = { ...doc.joints };
   for (const id of [w.startJointId, w.endJointId]) {
-    if (!used.has(id)) delete joints[id];
+    if (!used.has(id)) {
+      delete joints[id];
+    }
   }
   const windows = { ...doc.windows };
   for (const win of Object.values(doc.windows)) {
-    if (win.wallId === wallId) delete windows[win.id];
+    if (win.wallId === wallId) {
+      delete windows[win.id];
+    }
   }
   const doors = { ...doc.doors };
   for (const d of Object.values(doc.doors)) {
-    if (d.wallId === wallId) delete doors[d.id];
+    if (d.wallId === wallId) {
+      delete doors[d.id];
+    }
   }
   return copyDoc(doc, { joints, walls, windows, doors });
 }
@@ -277,7 +321,9 @@ export function addRoomItem(
 
 /** Removes a room item; no-op when the id is unknown. */
 export function removeRoomItem(doc: PlanDoc, itemId: string): PlanDoc {
-  if (!doc.roomObjects[itemId]) return doc;
+  if (!doc.roomObjects[itemId]) {
+    return doc;
+  }
   const roomObjects = { ...doc.roomObjects };
   delete roomObjects[itemId];
   return copyDoc(doc, { roomObjects });
@@ -286,8 +332,12 @@ export function removeRoomItem(doc: PlanDoc, itemId: string): PlanDoc {
 /** Moves an item's center; no-op for unknown ids / non-finite coordinates. */
 export function moveItem(doc: PlanDoc, itemId: string, x: number, y: number): PlanDoc {
   const it = doc.roomObjects[itemId];
-  if (!it || !Number.isFinite(x) || !Number.isFinite(y)) return doc;
-  if (it.x === x && it.y === y) return doc;
+  if (!it || !Number.isFinite(x) || !Number.isFinite(y)) {
+    return doc;
+  }
+  if (it.x === x && it.y === y) {
+    return doc;
+  }
   const roomObjects = { ...doc.roomObjects, [itemId]: { ...it, x, y } };
   return copyDoc(doc, { roomObjects });
 }
@@ -297,9 +347,13 @@ export function moveItem(doc: PlanDoc, itemId: string, x: number, y: number): Pl
  * clamped to the larger minimum. Same clamp as the live drag preview. */
 export function resizeItem(doc: PlanDoc, itemId: string, w: number, d: number): PlanDoc {
   const it = doc.roomObjects[itemId];
-  if (!it || !Number.isFinite(w) || !Number.isFinite(d)) return doc;
+  if (!it || !Number.isFinite(w) || !Number.isFinite(d)) {
+    return doc;
+  }
   const size = clampItemSize(it.kind, w, d);
-  if (it.w === size.w && it.d === size.d) return doc;
+  if (it.w === size.w && it.d === size.d) {
+    return doc;
+  }
   const roomObjects = { ...doc.roomObjects, [itemId]: { ...it, w: size.w, d: size.d } };
   return copyDoc(doc, { roomObjects });
 }
@@ -307,9 +361,13 @@ export function resizeItem(doc: PlanDoc, itemId: string, w: number, d: number): 
 /** Sets an item's rotation, normalized into [0, 360); no-op otherwise. */
 export function rotateItem(doc: PlanDoc, itemId: string, deg: number): PlanDoc {
   const it = doc.roomObjects[itemId];
-  if (!it || !Number.isFinite(deg)) return doc;
+  if (!it || !Number.isFinite(deg)) {
+    return doc;
+  }
   const rotation = ((deg % 360) + 360) % 360 || 0; // also normalizes -0
-  if (it.rotation === rotation) return doc;
+  if (it.rotation === rotation) {
+    return doc;
+  }
   const roomObjects = { ...doc.roomObjects, [itemId]: { ...it, rotation } };
   return copyDoc(doc, { roomObjects });
 }
@@ -326,14 +384,18 @@ export function roomLoopJoints(doc: PlanDoc, wallIds: WallId[]): JointId[] | nul
   const loop = new Set<JointId>();
   for (const id of wallIds) {
     const w = doc.walls[id];
-    if (!w) return null;
+    if (!w) {
+      return null;
+    }
     loop.add(w.startJointId);
     loop.add(w.endJointId);
   }
   const members = new Set(wallIds);
   for (const jid of loop) {
     for (const w of wallsAtJoint(doc, jid)) {
-      if (!members.has(w.id)) return null;
+      if (!members.has(w.id)) {
+        return null;
+      }
     }
   }
   return [...loop];
@@ -348,7 +410,9 @@ export function roomLoopJoints(doc: PlanDoc, wallIds: WallId[]): JointId[] | nul
  */
 export function moveRoom(doc: PlanDoc, wallIds: WallId[], roomKeyStr: string, delta: Pt): PlanDoc {
   const joints = roomLoopJoints(doc, wallIds);
-  if (!joints || (delta.x === 0 && delta.y === 0)) return doc;
+  if (!joints || (delta.x === 0 && delta.y === 0)) {
+    return doc;
+  }
   const nextJoints = { ...doc.joints };
   for (const jid of joints) {
     const j = doc.joints[jid];
@@ -357,7 +421,9 @@ export function moveRoom(doc: PlanDoc, wallIds: WallId[], roomKeyStr: string, de
   let roomObjects = doc.roomObjects;
   const movedObjects = { ...doc.roomObjects };
   for (const o of Object.values(doc.roomObjects)) {
-    if (o.roomId !== roomKeyStr) continue;
+    if (o.roomId !== roomKeyStr) {
+      continue;
+    }
     movedObjects[o.id] = { ...o, x: o.x + delta.x, y: o.y + delta.y };
     roomObjects = movedObjects;
   }
@@ -370,14 +436,21 @@ export function moveRoom(doc: PlanDoc, wallIds: WallId[], roomKeyStr: string, de
  * re-forming the same wall loop). An empty/whitespace name clears the entry.
  */
 export function renameRoom(doc: PlanDoc, roomKeyStr: string, name: string): PlanDoc {
-  if (roomKeyStr === '') return doc;
+  if (roomKeyStr === '') {
+    return doc;
+  }
   const trimmed = name.trim();
   const prev = doc.roomNames[roomKeyStr];
   const next = trimmed === '' ? undefined : trimmed;
-  if (prev === next) return doc;
+  if (prev === next) {
+    return doc;
+  }
   const roomNames = { ...doc.roomNames };
-  if (next === undefined) delete roomNames[roomKeyStr];
-  else roomNames[roomKeyStr] = next;
+  if (next === undefined) {
+    delete roomNames[roomKeyStr];
+  } else {
+    roomNames[roomKeyStr] = next;
+  }
   return copyDoc(doc, { roomNames });
 }
 
@@ -409,24 +482,38 @@ function clampWallOpenings(
 ): { windows: PlanDoc['windows']; doors: PlanDoc['doors'] } {
   const a = joints[wall.startJointId];
   const b = joints[wall.endJointId];
-  if (!a || !b) return { windows, doors };
+  if (!a || !b) {
+    return { windows, doors };
+  }
   const len = dist(a, b);
   let outW = windows;
   for (const win of Object.values(windows)) {
-    if (win.wallId !== wall.id) continue;
+    if (win.wallId !== wall.id) {
+      continue;
+    }
     const maxOff = Math.max(0, len - win.length);
     const offset = Math.max(0, Math.min(maxOff, win.offset));
-    if (offset === win.offset) continue;
-    if (outW === windows) outW = { ...windows };
+    if (offset === win.offset) {
+      continue;
+    }
+    if (outW === windows) {
+      outW = { ...windows };
+    }
     outW[win.id] = { ...win, offset };
   }
   let outD = doors;
   for (const d of Object.values(doors)) {
-    if (d.wallId !== wall.id) continue;
+    if (d.wallId !== wall.id) {
+      continue;
+    }
     const maxOff = Math.max(0, len - d.length);
     const offset = Math.max(0, Math.min(maxOff, d.offset));
-    if (offset === d.offset) continue;
-    if (outD === doors) outD = { ...doors };
+    if (offset === d.offset) {
+      continue;
+    }
+    if (outD === doors) {
+      outD = { ...doors };
+    }
     outD[d.id] = { ...d, offset };
   }
   return { windows: outW, doors: outD };
@@ -484,7 +571,9 @@ function openingsOnWall(doc: PlanDoc, wallId: WallId): OpeningPlacement[] {
 export function wallWindowSpanCm(doc: PlanDoc, wallId: WallId): number {
   let sum = 0;
   for (const w of Object.values(doc.windows)) {
-    if (w.wallId === wallId) sum += w.length;
+    if (w.wallId === wallId) {
+      sum += w.length;
+    }
   }
   return sum;
 }
@@ -516,14 +605,22 @@ export function openingGapBounds(
   innerSpanCm?: { from: number; to: number },
 ): OpeningGapBounds | null {
   const win = all.find((w) => w.id === openingId);
-  if (!win || !(wallLenCm > 0)) return null;
+  if (!win || !(wallLenCm > 0)) {
+    return null;
+  }
   let leftFrom = innerSpanCm ? Math.min(innerSpanCm.from, wallLenCm) : 0;
   let rightTo = innerSpanCm ? Math.max(innerSpanCm.to, 0) : wallLenCm;
   for (const o of all) {
-    if (o.wallId !== win.wallId || o.id === win.id) continue;
+    if (o.wallId !== win.wallId || o.id === win.id) {
+      continue;
+    }
     const end = o.offset + o.length;
-    if (end <= win.offset + 1e-6 && end > leftFrom) leftFrom = end;
-    if (o.offset >= win.offset + win.length - 1e-6 && o.offset < rightTo) rightTo = o.offset;
+    if (end <= win.offset + 1e-6 && end > leftFrom) {
+      leftFrom = end;
+    }
+    if (o.offset >= win.offset + win.length - 1e-6 && o.offset < rightTo) {
+      rightTo = o.offset;
+    }
   }
   leftFrom = Math.min(leftFrom, win.offset);
   rightTo = Math.max(rightTo, win.offset + win.length);
@@ -534,7 +631,9 @@ export function openingGapBounds(
 export function wallDoorSpanCm(doc: PlanDoc, wallId: WallId): number {
   let sum = 0;
   for (const d of Object.values(doc.doors)) {
-    if (d.wallId === wallId) sum += d.length;
+    if (d.wallId === wallId) {
+      sum += d.length;
+    }
   }
   return sum;
 }
@@ -553,10 +652,14 @@ export function violatedOpeningFloors(doc: PlanDoc): WallId[] {
   const bad: WallId[] = [];
   for (const w of Object.values(doc.walls)) {
     const span = wallOpeningSpanCm(doc, w.id);
-    if (span === 0) continue;
+    if (span === 0) {
+      continue;
+    }
     const a = doc.joints[w.startJointId];
     const b = doc.joints[w.endJointId];
-    if (a && b && dist(a, b) < span - 1e-6) bad.push(w.id);
+    if (a && b && dist(a, b) < span - 1e-6) {
+      bad.push(w.id);
+    }
   }
   return bad;
 }
@@ -578,11 +681,17 @@ function placeOpening(
   minLen: number,
   requestedLen: number | undefined,
 ): { doc: PlanDoc; placement: OpeningPlacement | null } {
-  if (!doc.walls[wallId]) return { doc, placement: null };
+  if (!doc.walls[wallId]) {
+    return { doc, placement: null };
+  }
   const len = wallCenterLength(doc, wallId);
-  if (len <= 0) return { doc, placement: null };
+  if (len <= 0) {
+    return { doc, placement: null };
+  }
   const gap = largestGap(openingsOnWall(doc, wallId), len);
-  if (!gap || gap.size < minLen) return { doc, placement: null };
+  if (!gap || gap.size < minLen) {
+    return { doc, placement: null };
+  }
 
   const length = Math.max(minLen, Math.min(requestedLen ?? defaultLen, gap.size));
   return { doc, placement: { offset: gap.start + (gap.size - length) / 2, length } };
@@ -595,7 +704,9 @@ function placeOpening(
  */
 export function addWindow(doc: PlanDoc, wallId: WallId, opts?: { length?: number }): AddWindowResult {
   const { doc: next, placement } = placeOpening(doc, wallId, DEFAULT_WINDOW_LENGTH, MIN_WINDOW_LENGTH, opts?.length);
-  if (!placement) return { doc, window: null };
+  if (!placement) {
+    return { doc, window: null };
+  }
   const win: WallWindow = { id: newId(), wallId, ...placement };
   return { doc: copyDoc(next, { windows: { ...next.windows, [win.id]: win } }), window: win };
 }
@@ -606,14 +717,18 @@ export function addWindow(doc: PlanDoc, wallId: WallId, opts?: { length?: number
  */
 export function addDoor(doc: PlanDoc, wallId: WallId, opts?: { length?: number }): AddDoorResult {
   const { doc: next, placement } = placeOpening(doc, wallId, DEFAULT_DOOR_LENGTH, MIN_DOOR_LENGTH, opts?.length);
-  if (!placement) return { doc, door: null };
+  if (!placement) {
+    return { doc, door: null };
+  }
   const door: WallDoor = { id: newId(), wallId, mode: 'tl', ...placement };
   return { doc: copyDoc(next, { doors: { ...next.doors, [door.id]: door } }), door };
 }
 
 /** Removes a window; no-op when the id is unknown. */
 export function deleteWindow(doc: PlanDoc, windowId: WindowId): PlanDoc {
-  if (!doc.windows[windowId]) return doc;
+  if (!doc.windows[windowId]) {
+    return doc;
+  }
   const windows = { ...doc.windows };
   delete windows[windowId];
   return copyDoc(doc, { windows });
@@ -621,7 +736,9 @@ export function deleteWindow(doc: PlanDoc, windowId: WindowId): PlanDoc {
 
 /** Removes a door; no-op when the id is unknown. */
 export function deleteDoor(doc: PlanDoc, doorId: DoorId): PlanDoc {
-  if (!doc.doors[doorId]) return doc;
+  if (!doc.doors[doorId]) {
+    return doc;
+  }
   const doors = { ...doc.doors };
   delete doors[doorId];
   return copyDoc(doc, { doors });
@@ -639,12 +756,18 @@ function clampedPlacement(
   offset: number,
   length: number,
 ): OpeningPlacement | null {
-  if (!Number.isFinite(offset) || !Number.isFinite(length)) return null;
-  if (wallLen <= 0) return null;
+  if (!Number.isFinite(offset) || !Number.isFinite(length)) {
+    return null;
+  }
+  if (wallLen <= 0) {
+    return null;
+  }
   const len = Math.max(minLen, Math.min(wallLen, length));
   const maxOff = Math.max(0, wallLen - len);
   const off = Math.max(0, Math.min(maxOff, offset));
-  if (len === cur.length && off === cur.offset) return null;
+  if (len === cur.length && off === cur.offset) {
+    return null;
+  }
   return { offset: off, length: len };
 }
 
@@ -655,7 +778,9 @@ function clampedPlacement(
  */
 export function setWindowLength(doc: PlanDoc, windowId: WindowId, lengthCm: number): PlanDoc {
   const win = doc.windows[windowId];
-  if (!win) return doc;
+  if (!win) {
+    return doc;
+  }
   const next = clampedPlacement(
     win,
     wallCenterLength(doc, win.wallId),
@@ -663,14 +788,18 @@ export function setWindowLength(doc: PlanDoc, windowId: WindowId, lengthCm: numb
     win.offset + (win.length - lengthCm) / 2,
     lengthCm,
   );
-  if (!next) return doc;
+  if (!next) {
+    return doc;
+  }
   return copyDoc(doc, { windows: { ...doc.windows, [windowId]: { ...win, ...next } } });
 }
 
 /** Same as setWindowLength, for doors. */
 export function setDoorLength(doc: PlanDoc, doorId: DoorId, lengthCm: number): PlanDoc {
   const door = doc.doors[doorId];
-  if (!door) return doc;
+  if (!door) {
+    return doc;
+  }
   const next = clampedPlacement(
     door,
     wallCenterLength(doc, door.wallId),
@@ -678,45 +807,63 @@ export function setDoorLength(doc: PlanDoc, doorId: DoorId, lengthCm: number): P
     door.offset + (door.length - lengthCm) / 2,
     lengthCm,
   );
-  if (!next) return doc;
+  if (!next) {
+    return doc;
+  }
   return copyDoc(doc, { doors: { ...doc.doors, [doorId]: { ...door, ...next } } });
 }
 
 /** Slides a window along its wall, keeping it inside; no-op when unknown. */
 export function setWindowOffset(doc: PlanDoc, windowId: WindowId, offsetCm: number): PlanDoc {
   const win = doc.windows[windowId];
-  if (!win) return doc;
+  if (!win) {
+    return doc;
+  }
   const wallLen = wallCenterLength(doc, win.wallId);
   const next = clampedPlacement(win, wallLen, MIN_WINDOW_LENGTH, offsetCm, win.length);
-  if (!next) return doc;
+  if (!next) {
+    return doc;
+  }
   return copyDoc(doc, { windows: { ...doc.windows, [windowId]: { ...win, offset: next.offset } } });
 }
 
 /** Slides a door along its wall, keeping it inside; no-op when unknown. */
 export function setDoorOffset(doc: PlanDoc, doorId: DoorId, offsetCm: number): PlanDoc {
   const door = doc.doors[doorId];
-  if (!door) return doc;
+  if (!door) {
+    return doc;
+  }
   const wallLen = wallCenterLength(doc, door.wallId);
   const next = clampedPlacement(door, wallLen, MIN_DOOR_LENGTH, offsetCm, door.length);
-  if (!next) return doc;
+  if (!next) {
+    return doc;
+  }
   return copyDoc(doc, { doors: { ...doc.doors, [doorId]: { ...door, offset: next.offset } } });
 }
 
 /** Sets both window edges at once (drag commit); values clamp back into the wall. */
 export function resizeWindow(doc: PlanDoc, windowId: WindowId, offset: number, length: number): PlanDoc {
   const win = doc.windows[windowId];
-  if (!win) return doc;
+  if (!win) {
+    return doc;
+  }
   const next = clampedPlacement(win, wallCenterLength(doc, win.wallId), MIN_WINDOW_LENGTH, offset, length);
-  if (!next) return doc;
+  if (!next) {
+    return doc;
+  }
   return copyDoc(doc, { windows: { ...doc.windows, [windowId]: { ...win, ...next } } });
 }
 
 /** Sets both door edges at once (drag commit); values clamp back into the wall. */
 export function resizeDoor(doc: PlanDoc, doorId: DoorId, offset: number, length: number): PlanDoc {
   const door = doc.doors[doorId];
-  if (!door) return doc;
+  if (!door) {
+    return doc;
+  }
   const next = clampedPlacement(door, wallCenterLength(doc, door.wallId), MIN_DOOR_LENGTH, offset, length);
-  if (!next) return doc;
+  if (!next) {
+    return doc;
+  }
   return copyDoc(doc, { doors: { ...doc.doors, [doorId]: { ...door, ...next } } });
 }
 
@@ -729,17 +876,23 @@ export function cycleDoorMode(doc: PlanDoc, doorId: DoorId, step: 1 | -1): PlanD
 export function cycleDoorMode(doc: PlanDoc, doorId: DoorId, mode: DoorMode): PlanDoc;
 export function cycleDoorMode(doc: PlanDoc, doorId: DoorId, arg: DoorMode | 1 | -1 = 1): PlanDoc {
   const door = doc.doors[doorId];
-  if (!door) return doc;
+  if (!door) {
+    return doc;
+  }
   let mode: DoorMode;
   if (arg === 1 || arg === -1) {
     const i = DOOR_MODES.indexOf(door.mode);
     const n = DOOR_MODES.length;
     mode = DOOR_MODES[(i + arg + n) % n];
   } else {
-    if (!DOOR_MODES.includes(arg)) return doc;
+    if (!DOOR_MODES.includes(arg)) {
+      return doc;
+    }
     mode = arg;
   }
-  if (mode === door.mode) return doc;
+  if (mode === door.mode) {
+    return doc;
+  }
   return copyDoc(doc, { doors: { ...doc.doors, [doorId]: { ...door, mode } } });
 }
 
@@ -762,15 +915,29 @@ export function docBBox(doc: PlanDoc): BBox | null {
   let maxX = -Infinity;
   let maxY = -Infinity;
   const grow = (x: number, y: number) => {
-    if (x < minX) minX = x;
-    if (y < minY) minY = y;
-    if (x > maxX) maxX = x;
-    if (y > maxY) maxY = y;
+    if (x < minX) {
+      minX = x;
+    }
+    if (y < minY) {
+      minY = y;
+    }
+    if (x > maxX) {
+      maxX = x;
+    }
+    if (y > maxY) {
+      maxY = y;
+    }
   };
-  for (const j of Object.values(doc.joints)) grow(j.x, j.y);
+  for (const j of Object.values(doc.joints)) {
+    grow(j.x, j.y);
+  }
   for (const o of Object.values(doc.roomObjects)) {
     const polys = transformPolys(collisionPolys(o.kind, o.w, o.d), o.x, o.y, o.rotation);
-    for (const poly of polys) for (const p of poly) grow(p.x, p.y);
+    for (const poly of polys) {
+      for (const p of poly) {
+        grow(p.x, p.y);
+      }
+    }
   }
   return minX === Infinity ? null : { minX, minY, maxX, maxY };
 }

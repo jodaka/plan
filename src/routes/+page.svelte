@@ -44,19 +44,26 @@ function deleteSelected() {
     return;
   }
   const id = ui.selectedWallId;
-  if (!id || !plan.doc.walls[id]) return;
+  if (!id || !plan.doc.walls[id]) {
+    return;
+  }
   plan.commit(m.history__deleteWall(), deleteWall(plan.doc, id));
   ui.select(null);
 }
 
 function onKeydown(e: KeyboardEvent) {
-  if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+  if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+    return;
+  }
   const mod = e.metaKey || e.ctrlKey;
   const key = e.key.toLowerCase();
   if (mod && key === 'z') {
     e.preventDefault();
-    if (e.shiftKey) plan.redo();
-    else plan.undo();
+    if (e.shiftKey) {
+      plan.redo();
+    } else {
+      plan.undo();
+    }
   } else if (mod && key === 'y') {
     e.preventDefault();
     plan.redo();

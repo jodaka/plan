@@ -37,18 +37,24 @@ const door = $derived(ui.selectedDoorId ? plan.doc.doors[ui.selectedDoorId] : un
 const item = $derived(ui.selectedItemId ? plan.doc.roomObjects[ui.selectedItemId] : undefined);
 const room = $derived.by(() => {
   const key = ui.selectedRoomKey;
-  if (!key) return undefined;
+  if (!key) {
+    return undefined;
+  }
   return scene.rooms.find((r) => r.key === key);
 });
 const length = $derived(wall ? dist(plan.doc.joints[wall.startJointId], plan.doc.joints[wall.endJointId]) : 0);
 const angle = $derived(wall ? wallAngleDeg(plan.doc.joints[wall.startJointId], plan.doc.joints[wall.endJointId]) : 0);
 
 const dims = $derived.by(() => {
-  if (!wall) return null;
+  if (!wall) {
+    return null;
+  }
   const halfNeighbor = (jid: string) => {
     let half = 0;
     for (const o of wallsAtJoint(plan.doc, jid)) {
-      if (o.id !== wall.id) half = Math.max(half, o.thickness);
+      if (o.id !== wall.id) {
+        half = Math.max(half, o.thickness);
+      }
     }
     return half / 2;
   };
@@ -84,13 +90,19 @@ function doorModeLabel(mode: DoorMode): string {
 }
 
 function categoryLabel(id: string): string {
-  if (id === 'bedroom') return m.inspector__catalogBedroom();
-  if (id === 'living-room') return m.inspector__catalogLivingRoom();
+  if (id === 'bedroom') {
+    return m.inspector__catalogBedroom();
+  }
+  if (id === 'living-room') {
+    return m.inspector__catalogLivingRoom();
+  }
   return id;
 }
 
 function applyLength(value: number) {
-  if (!wall || !Number.isFinite(value)) return;
+  if (!wall || !Number.isFinite(value)) {
+    return;
+  }
   const candidate = setInnerLength(plan.doc, wall.id, value);
   if (violatedOpeningFloors(candidate).length > 0) {
     ui.showError(m.inspector__wallLengthError({ min: fmtCm(dims?.minInner ?? MIN_WALL_LENGTH) }));
@@ -100,7 +112,9 @@ function applyLength(value: number) {
 }
 
 function applyThickness(value: number) {
-  if (!wall || !Number.isFinite(value)) return;
+  if (!wall || !Number.isFinite(value)) {
+    return;
+  }
   const candidate = setThickness(plan.doc, wall.id, value);
   // thinning pushes neighbor joints in, shortening THEIR spans too — check all
   if (violatedOpeningFloors(candidate).length > 0) {
@@ -111,7 +125,9 @@ function applyThickness(value: number) {
 }
 
 function addWindowToWall() {
-  if (!wall) return;
+  if (!wall) {
+    return;
+  }
   const res = addWindow(plan.doc, wall.id);
   if (!res.window) {
     ui.showError(m.inspector__windowSpaceError({ min: fmtCm(MIN_WINDOW_LENGTH) }));
@@ -123,7 +139,9 @@ function addWindowToWall() {
 }
 
 function addDoorToWall() {
-  if (!wall) return;
+  if (!wall) {
+    return;
+  }
   const res = addDoor(plan.doc, wall.id);
   if (!res.door) {
     ui.showError(m.inspector__doorSpaceError({ min: fmtCm(MIN_DOOR_LENGTH) }));
@@ -135,55 +153,75 @@ function addDoorToWall() {
 }
 
 function applyWindowLength(value: number) {
-  if (!win || !Number.isFinite(value)) return;
+  if (!win || !Number.isFinite(value)) {
+    return;
+  }
   plan.commit(m.history__resizeWindow(), setWindowLength(plan.doc, win.id, value));
 }
 
 function applyDoorLength(value: number) {
-  if (!door || !Number.isFinite(value)) return;
+  if (!door || !Number.isFinite(value)) {
+    return;
+  }
   plan.commit(m.history__resizeDoor(), setDoorLength(plan.doc, door.id, value));
 }
 
 function toggleDoorMode() {
-  if (!door) return;
+  if (!door) {
+    return;
+  }
   plan.commit(m.history__changeDoorSwing(), cycleDoorMode(plan.doc, door.id));
 }
 
 function removeDoor() {
-  if (!door) return;
+  if (!door) {
+    return;
+  }
   plan.commit(m.history__deleteDoor(), deleteDoor(plan.doc, door.id));
   ui.selectDoor(null); // falls back to the still-selected wall
 }
 
 function removeWindow() {
-  if (!win) return;
+  if (!win) {
+    return;
+  }
   plan.commit(m.history__deleteWindow(), deleteWindow(plan.doc, win.id));
   ui.selectWindow(null);
 }
 
 function applyItemSize(w: number, d: number) {
-  if (!item || !Number.isFinite(w) || !Number.isFinite(d)) return;
+  if (!item || !Number.isFinite(w) || !Number.isFinite(d)) {
+    return;
+  }
   plan.commit(m.history__resizeItem({ label: catalogLabel(item.kind) }), resizeItem(plan.doc, item.id, w, d));
 }
 
 function applyItemRotation(deg: number) {
-  if (!item || !Number.isFinite(deg)) return;
+  if (!item || !Number.isFinite(deg)) {
+    return;
+  }
   plan.commit(m.history__rotateItem({ label: catalogLabel(item.kind) }), rotateItem(plan.doc, item.id, deg));
 }
 
 function removeItem() {
-  if (!item) return;
+  if (!item) {
+    return;
+  }
   plan.commit(m.history__deleteItem({ label: catalogLabel(item.kind) }), removeRoomItem(plan.doc, item.id));
   ui.selectItem(null);
 }
 
 function applyRoomName(name: string) {
-  if (!room) return;
+  if (!room) {
+    return;
+  }
   plan.commit(m.history__renameRoom(), renameRoom(plan.doc, room.key, name));
 }
 
 function remove() {
-  if (!wall) return;
+  if (!wall) {
+    return;
+  }
   // destroying a room orphans its bound entities (furniture, …) — warn before
   // the fact; windows/doors die WITH their wall by design
   const rooms = scene.rooms.filter((r) => r.wallIds.includes(wall.id));
@@ -191,17 +229,21 @@ function remove() {
   if (
     (rooms.length > 0 || wallWins.length > 0 || wallDoors.length > 0) &&
     !confirm(confirmMessage(rooms.length, objects, wallWins.length, wallDoors.length))
-  )
+  ) {
     return;
+  }
   plan.commit(m.history__deleteWall(), deleteWall(plan.doc, wall.id));
   ui.select(null);
 }
 
 function confirmMessage(roomCount: number, objectCount: number, winCount: number, doorCount: number): string {
   const parts: string[] = [];
-  if (roomCount > 0) parts.push(m.inspector__wallDeleteRoom({ roomCount, objects: objectCount }));
-  if (winCount > 0 || doorCount > 0)
+  if (roomCount > 0) {
+    parts.push(m.inspector__wallDeleteRoom({ roomCount, objects: objectCount }));
+  }
+  if (winCount > 0 || doorCount > 0) {
     parts.push(m.inspector__wallDeleteOpenings({ windows: winCount, doors: doorCount }));
+  }
   return m.inspector__wallDeleteConfirm({ parts: parts.join(', ') });
 }
 </script>
@@ -309,7 +351,9 @@ function confirmMessage(roomCount: number, objectCount: number, winCount: number
             <button
               class="win-row"
               onclick={() => {
-                if (!wall) return;
+                if (!wall) {
+                  return;
+                }
                 ui.select(wall.id);
                 ui.selectWindow(w.id);
               }}
@@ -326,7 +370,9 @@ function confirmMessage(roomCount: number, objectCount: number, winCount: number
             <button
               class="door-row"
               onclick={() => {
-                if (!wall) return;
+                if (!wall) {
+                  return;
+                }
                 ui.select(wall.id);
                 ui.selectDoor(d.id);
               }}

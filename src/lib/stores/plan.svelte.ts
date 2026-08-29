@@ -37,19 +37,27 @@ export const plan = {
 
   /** Commits a new document state produced by a pure op. Truncates the redo tail. */
   commit(label: string, doc: PlanDoc): void {
-    if (doc === this.doc) return;
+    if (doc === this.doc) {
+      return;
+    }
     const next = entries.slice(0, index + 1);
     next.push({ label, doc });
     const overflow = next.length - HISTORY_LIMIT;
-    if (overflow > 0) next.splice(0, overflow);
+    if (overflow > 0) {
+      next.splice(0, overflow);
+    }
     entries = next;
     index = next.length - 1;
   },
 
   undo(): void {
-    if (this.canUndo) index -= 1;
+    if (this.canUndo) {
+      index -= 1;
+    }
   },
   redo(): void {
-    if (this.canRedo) index += 1;
+    if (this.canRedo) {
+      index += 1;
+    }
   },
 };

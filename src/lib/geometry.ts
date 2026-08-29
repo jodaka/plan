@@ -51,7 +51,9 @@ export function extendPts(a: Pt, b: Pt, extA: number, extB: number): [Pt, Pt] {
 /** Intersection of lines p1+t·d1 and p2+s·d2; null when (near-)parallel. */
 export function lineIntersect(p1: Pt, d1: Pt, p2: Pt, d2: Pt): Pt | null {
   const den = d1.x * d2.y - d1.y * d2.x;
-  if (Math.abs(den) < 1e-9) return null;
+  if (Math.abs(den) < 1e-9) {
+    return null;
+  }
   const t = ((p2.x - p1.x) * d2.y - (p2.y - p1.y) * d2.x) / den;
   return { x: p1.x + d1.x * t, y: p1.y + d1.y * t };
 }
@@ -138,8 +140,12 @@ export const HORIZ_VERT_TOL_DEG = 1;
 /** 'h'/'v' if segment a->b is within tolerance of horizontal/vertical, else null. */
 export function axisAlign(a: Pt, b: Pt, tolDeg: number = HORIZ_VERT_TOL_DEG): 'h' | 'v' | null {
   const ang = wallAngleDeg(a, b);
-  if (ang <= tolDeg || ang >= 180 - tolDeg) return 'h';
-  if (Math.abs(ang - 90) <= tolDeg) return 'v';
+  if (ang <= tolDeg || ang >= 180 - tolDeg) {
+    return 'h';
+  }
+  if (Math.abs(ang - 90) <= tolDeg) {
+    return 'v';
+  }
   return null;
 }
 
@@ -151,7 +157,9 @@ export function fmtCm(cm: number): string {
 /** Formats an area given in cm² as m² (2-decimal precision, trailing zeros stripped). */
 export function fmtM2(cm2: number): string {
   const m2 = Math.round((cm2 / 1e4) * 100) / 100;
-  if (Number.isInteger(m2)) return String(m2);
+  if (Number.isInteger(m2)) {
+    return String(m2);
+  }
   return m2.toFixed(2).replace(/0$/, '');
 }
 
@@ -198,7 +206,13 @@ export function polysBBox(polys: Pt[][]): { minX: number; minY: number; maxX: nu
 
 /** True if any poly of `a` intersects any poly of `b` (each poly convex). */
 export function polysIntersect(a: Pt[][], b: Pt[][]): boolean {
-  for (const pa of a) for (const pb of b) if (polygonsIntersect(pa, pb)) return true;
+  for (const pa of a) {
+    for (const pb of b) {
+      if (polygonsIntersect(pa, pb)) {
+        return true;
+      }
+    }
+  }
   return false;
 }
 
@@ -228,10 +242,18 @@ export function ptsBBox(pts: Pt[]): { minX: number; minY: number; maxX: number; 
   let maxX = -Infinity;
   let maxY = -Infinity;
   for (const p of pts) {
-    if (p.x < minX) minX = p.x;
-    if (p.y < minY) minY = p.y;
-    if (p.x > maxX) maxX = p.x;
-    if (p.y > maxY) maxY = p.y;
+    if (p.x < minX) {
+      minX = p.x;
+    }
+    if (p.y < minY) {
+      minY = p.y;
+    }
+    if (p.x > maxX) {
+      maxX = p.x;
+    }
+    if (p.y > maxY) {
+      maxY = p.y;
+    }
   }
   return { minX, minY, maxX, maxY };
 }
@@ -248,7 +270,9 @@ export function polygonContainsPoint(poly: Pt[], p: Pt): boolean {
       p.x <= Math.max(a.x, b.x) + 1e-9 &&
       Math.min(a.y, b.y) - 1e-9 <= p.y &&
       p.y <= Math.max(a.y, b.y) + 1e-9;
-    if (onSegment) return true;
+    if (onSegment) {
+      return true;
+    }
     if (a.y > p.y !== b.y > p.y && p.x < ((b.x - a.x) * (p.y - a.y)) / (b.y - a.y) + a.x) {
       inside = !inside;
     }
@@ -261,7 +285,9 @@ export function polygonContainsPoint(poly: Pt[], p: Pt): boolean {
  * intersecting (gap ≤ 1e-9) — callers that want flush contact to pass shrink
  * one polygon by a hair.
  */ export function polygonsIntersect(a: Pt[], b: Pt[]): boolean {
-  if (a.length < 3 || b.length < 3) return false;
+  if (a.length < 3 || b.length < 3) {
+    return false;
+  }
   for (const poly of [a, b]) {
     for (let i = 0; i < poly.length; i++) {
       const p1 = poly[i];
@@ -270,22 +296,34 @@ export function polygonContainsPoint(poly: Pt[], p: Pt): boolean {
       const ax = -(p2.y - p1.y);
       const ay = p2.x - p1.x;
       const len = Math.hypot(ax, ay);
-      if (len < 1e-12) continue;
+      if (len < 1e-12) {
+        continue;
+      }
       let aMin = Infinity;
       let aMax = -Infinity;
       let bMin = Infinity;
       let bMax = -Infinity;
       for (const p of a) {
         const v = p.x * ax + p.y * ay;
-        if (v < aMin) aMin = v;
-        if (v > aMax) aMax = v;
+        if (v < aMin) {
+          aMin = v;
+        }
+        if (v > aMax) {
+          aMax = v;
+        }
       }
       for (const p of b) {
         const v = p.x * ax + p.y * ay;
-        if (v < bMin) bMin = v;
-        if (v > bMax) bMax = v;
+        if (v < bMin) {
+          bMin = v;
+        }
+        if (v > bMax) {
+          bMax = v;
+        }
       }
-      if (aMax - bMin < -1e-9 || bMax - aMin < -1e-9) return false;
+      if (aMax - bMin < -1e-9 || bMax - aMin < -1e-9) {
+        return false;
+      }
     }
   }
   return true;
@@ -298,7 +336,9 @@ export function shrinkPolygon(poly: Pt[], margin: number): Pt[] {
     const dx = p.x - c.x;
     const dy = p.y - c.y;
     const len = Math.hypot(dx, dy);
-    if (len < 1e-9) return { ...p };
+    if (len < 1e-9) {
+      return { ...p };
+    }
     const k = Math.max(0, (len - margin) / len);
     return { x: c.x + dx * k, y: c.y + dy * k };
   });
@@ -353,7 +393,9 @@ export function snapItemCenter(
   let fy = Infinity;
   const consider = (axis: 'x' | 'y', delta: number) => {
     const d = Math.abs(delta);
-    if (d > threshold) return;
+    if (d > threshold) {
+      return;
+    }
     if (axis === 'x') {
       if (d < fx) {
         fx = d;
@@ -368,7 +410,9 @@ export function snapItemCenter(
   for (const s of walls) {
     const alongLo = s.axis === 'x' ? y - halfH : x - halfW;
     const alongHi = s.axis === 'x' ? y + halfH : x + halfW;
-    if (alongHi < s.from - threshold || alongLo > s.to + threshold) continue;
+    if (alongHi < s.from - threshold || alongLo > s.to + threshold) {
+      continue;
+    }
     const neg = s.axis === 'x' ? x - halfW : y - halfH;
     const pos = s.axis === 'x' ? x + halfW : y + halfH;
     const center = s.axis === 'x' ? x : y;

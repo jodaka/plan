@@ -87,7 +87,9 @@ const renderJoints = $derived.by<Record<string, Joint>>(() => {
   const r: Record<string, Joint> = { ...plan.doc.joints };
   for (const [id, p] of Object.entries(drafts.joints)) {
     const j = r[id];
-    if (j) r[id] = { ...j, x: p.x, y: p.y };
+    if (j) {
+      r[id] = { ...j, x: p.x, y: p.y };
+    }
   }
   return r;
 });
@@ -106,14 +108,22 @@ const wallEndNeighbors = $derived.by<Record<string, { start: WallEndNeighbor | n
     for (const w of Object.values(plan.doc.walls)) {
       const thickest = (jid: JointId): WallEndNeighbor | null => {
         const j = plan.doc.joints[jid];
-        if (!j) return null;
+        if (!j) {
+          return null;
+        }
         let best: WallEndNeighbor | null = null;
         for (const o of Object.values(plan.doc.walls)) {
-          if (o.id === w.id) continue;
-          if (o.startJointId !== jid && o.endJointId !== jid) continue;
+          if (o.id === w.id) {
+            continue;
+          }
+          if (o.startJointId !== jid && o.endJointId !== jid) {
+            continue;
+          }
           const oid = o.startJointId === jid ? o.endJointId : o.startJointId;
           const oj = plan.doc.joints[oid];
-          if (!oj) continue;
+          if (!oj) {
+            continue;
+          }
           if (!best || o.thickness > best.t) {
             best = { dir: unit(sub(oj, j)), t: o.thickness };
           }
@@ -141,10 +151,14 @@ const renderWindows = $derived.by<(WallWindow & { a: Pt; b: Pt; t: number })[]>(
   const out: (WallWindow & { a: Pt; b: Pt; t: number })[] = [];
   for (const win of Object.values(plan.doc.windows)) {
     const w = plan.doc.walls[win.wallId];
-    if (!w) continue;
+    if (!w) {
+      continue;
+    }
     const a = renderJoints[w.startJointId];
     const b = renderJoints[w.endJointId];
-    if (!a || !b) continue;
+    if (!a || !b) {
+      continue;
+    }
     const d = drafts.openings[win.id];
     const length = Math.max(MIN_WINDOW_LENGTH, d?.length ?? win.length);
     const maxOff = Math.max(0, dist(a, b) - length);
@@ -159,10 +173,14 @@ const renderDoors = $derived.by<(WallDoor & { a: Pt; b: Pt; t: number })[]>(() =
   const out: (WallDoor & { a: Pt; b: Pt; t: number })[] = [];
   for (const door of Object.values(plan.doc.doors)) {
     const w = plan.doc.walls[door.wallId];
-    if (!w) continue;
+    if (!w) {
+      continue;
+    }
     const a = renderJoints[w.startJointId];
     const b = renderJoints[w.endJointId];
-    if (!a || !b) continue;
+    if (!a || !b) {
+      continue;
+    }
     const d = drafts.openings[door.id];
     const length = Math.max(MIN_DOOR_LENGTH, d?.length ?? door.length);
     const maxOff = Math.max(0, dist(a, b) - length);
@@ -178,7 +196,9 @@ const wallPolys = $derived.by<Pt[][]>(() => {
   for (const w of Object.values(plan.doc.walls)) {
     const a = renderJoints[w.startJointId];
     const b = renderJoints[w.endJointId];
-    if (!a || !b) continue;
+    if (!a || !b) {
+      continue;
+    }
     const u = unit(sub(b, a));
     const n = { x: -u.y, y: u.x };
     const h = w.thickness / 2;
@@ -187,10 +207,81 @@ const wallPolys = $derived.by<Pt[][]>(() => {
   return out;
 });
 
+/**
+ * Pairwise overlap flags (SAT), the expensive part of renderItems. Two items
+ * of DIFFERENT rooms can never touch — each is confined to its room's
+ * clear-floor polygon and distinct rooms' polygons are disjoint — so pairs
+ * are only checked within one room. Orphans have no room confinement, so
+ * they are tested against everything (they are rare). An AABB broadphase
+ * culls far-apart pairs with 4 comparisons before the polygon SAT runs.
+ */
+function computeOverlapFlags(items: RenderItem[]): Record<string, boolean> {
+  const flags: Record<string, boolean> = {};
+  const byRoom = new Map<string, RenderItem[]>();
+  const orphans: RenderItem[] = [];
+  for (const it of items) {
+    if (it.orphan) {
+      orphans.push(it);
+    } else {
+      const list = byRoom.get(it.obj.roomId);
+      if (list) {
+        list.push(it);
+      } else {
+        byRoom.set(it.obj.roomId, [it]);
+      }
+    }
+  }
+  const checkPair = (a: RenderItem, b: RenderItem) => {
+    const ba = a.aabb;
+    const bb = b.aabb;
+    if (ba.maxX < bb.minX || bb.maxX < ba.minX || ba.maxY < bb.minY || bb.maxY < ba.minY) {
+      return;
+    }
+    if (polysIntersect(a.shrunkPolys, b.shrunkPolys)) {
+      flags[a.obj.id] = true;
+      flags[b.obj.id] = true;
+    }
+  };
+  for (const list of byRoom.values()) {
+    for (let i = 0; i < list.length; i++) {
+      for (let j = i + 1; j < list.length; j++) {
+        checkPair(list[i], list[j]);
+      }
+    }
+  }
+  for (let i = 0; i < orphans.length; i++) {
+    for (const list of byRoom.values()) {
+      for (const it of list) {
+        checkPair(orphans[i], it);
+      }
+    }
+    for (let j = i + 1; j < orphans.length; j++) {
+      checkPair(orphans[i], orphans[j]);
+    }
+  }
+  return flags;
+}
+
+/**
+ * Overlap tints are pure cosmetics, so while an item gesture is in flight
+ * they refresh at most every OVERLAP_THROTTLE_MS instead of per drag frame —
+ * positions and validity stay live. Reading a clock inside $derived is the
+ * documented intentional impurity here (see ai/decisions.md §10): the cache
+ * only ever makes the tint lag, never the geometry, and any gesture end
+ * (commit or cancel) changes a tracked dependency, so the final state is
+ * always computed fresh.
+ */
+const OVERLAP_THROTTLE_MS = 200;
+let overlapCache: { at: number; flags: Record<string, boolean> } = { at: 0, flags: {} };
+
+/** rooms indexed by stable key — a separate derived so item drags (which
+ * recompute renderItems per frame) don't rebuild the lookup while the rooms
+ * themselves are unchanged */
+const roomByKey = $derived.by(() => new Map(rooms.map((r) => [r.key, r])));
+
 /** items merged with drag drafts; overlap + wall/room validity recomputed
  * live so tints follow drags before anything is committed — true-shape aware */
 const renderItems = $derived.by<RenderItem[]>(() => {
-  const roomByKey = new Map(rooms.map((r) => [r.key, r]));
   const out: RenderItem[] = [];
   for (const obj of Object.values(plan.doc.roomObjects)) {
     const merged: RoomObject = { ...obj, ...(drafts.items[obj.id] ?? {}) };
@@ -211,13 +302,15 @@ const renderItems = $derived.by<RenderItem[]>(() => {
       overlapping: false,
     });
   }
-  for (let i = 0; i < out.length; i++) {
-    for (let j = i + 1; j < out.length; j++) {
-      if (polysIntersect(out[i].shrunkPolys, out[j].shrunkPolys)) {
-        out[i].overlapping = true;
-        out[j].overlapping = true;
-      }
-    }
+  // item drafts non-empty ⇔ an item gesture is in flight → throttle the tint
+  const throttleMs = Object.keys(drafts.items).length > 0 ? OVERLAP_THROTTLE_MS : 0;
+  const now = Date.now();
+  if (now - overlapCache.at >= throttleMs) {
+    overlapCache = { at: now, flags: computeOverlapFlags(out) };
+  }
+  const flags = overlapCache.flags;
+  for (const it of out) {
+    it.overlapping = flags[it.obj.id] ?? false;
   }
   return out;
 });
@@ -225,9 +318,13 @@ const renderItems = $derived.by<RenderItem[]>(() => {
 /** resize + rotate handles for the selected item, in the top layer */
 const itemHandles = $derived.by(() => {
   const sel = ui.selectedItemId;
-  if (!sel) return [];
+  if (!sel) {
+    return [];
+  }
   const view = renderItems.find((i) => i.obj.id === sel);
-  if (!view) return [];
+  if (!view) {
+    return [];
+  }
   return itemCorners(view.obj.x, view.obj.y, view.obj.w, view.obj.d, view.obj.rotation).map((p, corner) => ({
     id: sel,
     corner,
@@ -237,9 +334,13 @@ const itemHandles = $derived.by(() => {
 
 const rotateHandle = $derived.by(() => {
   const sel = ui.selectedItemId;
-  if (!sel) return null;
+  if (!sel) {
+    return null;
+  }
   const view = renderItems.find((i) => i.obj.id === sel);
-  if (!view) return null;
+  if (!view) {
+    return null;
+  }
   const { obj } = view;
   const off = obj.d / 2 + 16 / viewport.scale;
   return {
@@ -252,9 +353,13 @@ const rotateHandle = $derived.by(() => {
 /** resize handles for the selected opening(s), in the top layer (see §4 layering) */
 const selectedWindowHandles = $derived.by(() => {
   const sel = ui.selectedWindowId;
-  if (!sel || !plan.doc.windows[sel]) return [];
+  if (!sel || !plan.doc.windows[sel]) {
+    return [];
+  }
   const win = renderWindows.find((w) => w.id === sel);
-  if (!win) return [];
+  if (!win) {
+    return [];
+  }
   const u = unit(sub(win.b, win.a));
   return [
     { winId: sel, side: 'start' as const, p: addPt(win.a, mul(u, win.offset)) },
@@ -267,9 +372,13 @@ const selectedWindowHandles = $derived.by(() => {
  * or to the wall's inner (clear) span ends when it has no neighbors there */
 const selectedOpeningHints = $derived.by(() => {
   const sel = ui.selectedWindowId ?? ui.selectedDoorId;
-  if (!sel) return null;
+  if (!sel) {
+    return null;
+  }
   const open = [...renderWindows, ...renderDoors].find((o) => o.id === sel);
-  if (!open) return null;
+  if (!open) {
+    return null;
+  }
   const wallLen = dist(open.a, open.b);
   // measure to the inner faces, not the joints: the clear span starts one
   // corner extension in (half of the thickest neighbor at that joint)
@@ -279,7 +388,9 @@ const selectedOpeningHints = $derived.by(() => {
     from: exts.start,
     to: Math.max(exts.start, wallLen - exts.end),
   });
-  if (!bounds) return null;
+  if (!bounds) {
+    return null;
+  }
   // draw on the wall's outer side — same rule as the wall dimension lines:
   // connected walls extend into the room, so the outer side is away from them
   const n0 = { x: -(open.b.y - open.a.y), y: open.b.x - open.a.x };
@@ -294,7 +405,9 @@ const selectedOpeningHints = $derived.by(() => {
     if (nb) {
       const oid = nb.startJointId === wall.startJointId ? nb.endJointId : nb.startJointId;
       const o = plan.doc.joints[oid];
-      if (o && n0.x * (o.x - ja.x) + n0.y * (o.y - ja.y) > 0) flip = true;
+      if (o && n0.x * (o.x - ja.x) + n0.y * (o.y - ja.y) > 0) {
+        flip = true;
+      }
     }
   }
   return { open, bounds, flip };
@@ -302,9 +415,13 @@ const selectedOpeningHints = $derived.by(() => {
 
 const selectedDoorHandles = $derived.by(() => {
   const sel = ui.selectedDoorId;
-  if (!sel || !plan.doc.doors[sel]) return [];
+  if (!sel || !plan.doc.doors[sel]) {
+    return [];
+  }
   const door = renderDoors.find((d) => d.id === sel);
-  if (!door) return [];
+  if (!door) {
+    return [];
+  }
   const u = unit(sub(door.b, door.a));
   return [
     { doorId: sel, side: 'start' as const, p: addPt(door.a, mul(u, door.offset)) },
@@ -316,7 +433,9 @@ const selectedDoorHandles = $derived.by(() => {
  * while a joint is being dragged — every wall attached to that joint, so
  * all affected lengths/angles annotate automatically */
 const highlightIds = $derived.by<WallId[]>(() => {
-  if (jointDrag.activeId) return wallsAtJoint(plan.doc, jointDrag.activeId).map((w) => w.id);
+  if (jointDrag.activeId) {
+    return wallsAtJoint(plan.doc, jointDrag.activeId).map((w) => w.id);
+  }
   // a selected opening suppresses its wall's highlight — the blue overlay and
   // dimension lines would visually fight the opening's own editing UI
   return ui.selectedWallId && !ui.selectedWindowId && !ui.selectedDoorId ? [ui.selectedWallId] : [];
@@ -328,12 +447,18 @@ const handleJoints = $derived.by<Joint[]>(() => {
   const out: Joint[] = [];
   for (const id of highlightIds) {
     const w = plan.doc.walls[id];
-    if (!w) continue;
+    if (!w) {
+      continue;
+    }
     for (const jid of [w.startJointId, w.endJointId]) {
-      if (seen.has(jid)) continue;
+      if (seen.has(jid)) {
+        continue;
+      }
       seen.add(jid);
       const j = renderJoints[jid];
-      if (j) out.push(j);
+      if (j) {
+        out.push(j);
+      }
     }
   }
   return out;
@@ -345,10 +470,14 @@ const highlights = $derived.by<Highlight[]>(() => {
   const out: Highlight[] = [];
   for (const id of highlightIds) {
     const w = plan.doc.walls[id];
-    if (!w) continue;
+    if (!w) {
+      continue;
+    }
     const a = renderJoints[w.startJointId];
     const b = renderJoints[w.endJointId];
-    if (!a || !b) continue;
+    if (!a || !b) {
+      continue;
+    }
     const exts = wallExts[id] ?? { start: 0, end: 0 };
     const ends = wallEndNeighbors[id] ?? { start: null, end: null };
     const corners = wallCorners(a, b, w.thickness, ends.start, ends.end);
@@ -363,7 +492,9 @@ const highlights = $derived.by<Highlight[]>(() => {
     if (nb) {
       const oid = nb.startJointId === w.startJointId ? nb.endJointId : nb.startJointId;
       const o = plan.doc.joints[oid];
-      if (o && n0.x * (o.x - a.x) + n0.y * (o.y - a.y) > 0) outerN = mul(n0, -1);
+      if (o && n0.x * (o.x - a.x) + n0.y * (o.y - a.y) > 0) {
+        outerN = mul(n0, -1);
+      }
     }
     // dimension anchors: the polygon corners on the outer side
     const nx = -u.y;
@@ -401,28 +532,42 @@ const highlights = $derived.by<Highlight[]>(() => {
 /** angle arcs between each highlighted wall and the walls attached at its joints */
 const selArcs = $derived.by<ArcInfo[]>(() => {
   const arcs: ArcInfo[] = [];
-  if (highlightIds.length === 0) return arcs;
+  if (highlightIds.length === 0) {
+    return arcs;
+  }
   const seen = new Set<string>();
   for (const id of highlightIds) {
     const w = plan.doc.walls[id];
-    if (!w) continue;
+    if (!w) {
+      continue;
+    }
     for (const jid of [w.startJointId, w.endJointId]) {
       const j = renderJoints[jid];
       const oW = renderJoints[jid === w.startJointId ? w.endJointId : w.startJointId];
-      if (!j || !oW) continue;
+      if (!j || !oW) {
+        continue;
+      }
       const dW = unit(sub(oW, j));
       for (const nb of wallsAtJoint(plan.doc, jid)) {
-        if (nb.id === w.id) continue;
+        if (nb.id === w.id) {
+          continue;
+        }
         // the same wall pair is visited from both sides — dedupe
         const key = `${jid}:${[w.id, nb.id].sort().join(':')}`;
-        if (seen.has(key)) continue;
+        if (seen.has(key)) {
+          continue;
+        }
         seen.add(key);
         const nOid = nb.startJointId === jid ? nb.endJointId : nb.startJointId;
         const nO = renderJoints[nOid];
-        if (!nO) continue;
+        if (!nO) {
+          continue;
+        }
         const dN = unit(sub(nO, j));
         const ang = angleBetweenDeg(vectorAngleDeg(dW), vectorAngleDeg(dN));
-        if (ang > 179) continue; // collinear continuation — no corner to annotate
+        if (ang > 179) {
+          continue; // collinear continuation — no corner to annotate
+        }
 
         // arc from wall EDGE to wall EDGE: radius clears both wall
         // halves; endpoints are the circle's intersections with each
@@ -431,7 +576,9 @@ const selArcs = $derived.by<ArcInfo[]>(() => {
         const r = 1.5 * Math.max(30 / viewport.scale, Math.max(w.thickness, nb.thickness) / 2 + 8 / viewport.scale);
         const facePoint = (dSelf: Pt, dOther: Pt, tSelf: number) => {
           let n = { x: -dSelf.y, y: dSelf.x };
-          if (n.x * dOther.x + n.y * dOther.y < 0) n = { x: -n.x, y: -n.y };
+          if (n.x * dOther.x + n.y * dOther.y < 0) {
+            n = { x: -n.x, y: -n.y };
+          }
           const half = tSelf / 2;
           const s = Math.sqrt(Math.max(0, r * r - half * half));
           return addPt(addPt(j, mul(n, half)), mul(dSelf, s));
@@ -467,14 +614,20 @@ const visibleRect = $derived.by(() => {
 });
 
 const grid = $derived.by(() => {
-  if (!ui.showGrid) return null;
+  if (!ui.showGrid) {
+    return null;
+  }
   const steps = [1, 5, 10, 50, 100, 500];
   const step = steps.find((s) => s * viewport.scale >= 8) ?? 1000;
   const r = visibleRect;
   const xs: number[] = [];
   const ys: number[] = [];
-  for (let x = Math.floor(r.x / step) * step; x <= r.x + r.w; x += step) xs.push(x);
-  for (let y = Math.floor(r.y / step) * step; y <= r.y + r.h; y += step) ys.push(y);
+  for (let x = Math.floor(r.x / step) * step; x <= r.x + r.w; x += step) {
+    xs.push(x);
+  }
+  for (let y = Math.floor(r.y / step) * step; y <= r.y + r.h; y += step) {
+    ys.push(y);
+  }
   return { xs, ys, r };
 });
 

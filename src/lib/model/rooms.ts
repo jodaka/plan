@@ -50,13 +50,17 @@ export function findRooms(joints: PlanDoc['joints'], walls: PlanDoc['walls']): R
   const addEdge = (wallId: WallId, from: JointId, to: JointId) => {
     const jf = joints[from];
     const jt = joints[to];
-    if (!jf || !jt) return;
+    if (!jf || !jt) {
+      return;
+    }
     let list = adj.get(from);
     if (!list) {
       list = [];
       adj.set(from, list);
     }
-    if (list.some((e) => e.to === to)) return;
+    if (list.some((e) => e.to === to)) {
+      return;
+    }
     list.push({ from, to, dir: unit({ x: jt.x - jf.x, y: jt.y - jf.y }), wallId });
   };
   for (const w of Object.values(walls)) {
@@ -72,7 +76,9 @@ export function findRooms(joints: PlanDoc['joints'], walls: PlanDoc['walls']): R
 
   for (const [, edges] of adj) {
     for (const start of edges) {
-      if (visited.has(edgeKey(start))) continue;
+      if (visited.has(edgeKey(start))) {
+        continue;
+      }
 
       // trace one face: at each joint continue with the CCW PREDECESSOR of
       // the half-edge pointing back where we came from — this keeps the face
@@ -84,9 +90,13 @@ export function findRooms(joints: PlanDoc['joints'], walls: PlanDoc['walls']): R
         visited.add(edgeKey(cur));
         loop.push(cur);
         const list = adj.get(cur.to);
-        if (!list) break;
+        if (!list) {
+          break;
+        }
         const back = list.findIndex((e) => e.to === cur.from);
-        if (back < 0) break;
+        if (back < 0) {
+          break;
+        }
         const next = list[(back - 1 + list.length) % list.length];
         if (next.from === start.from && next.to === start.to) {
           closed = true;
@@ -177,7 +187,9 @@ export function roomKey(wallIds: WallId[]): string {
 export function roomObjectsIn(doc: PlanDoc, roomKeyStr: string): PlanDoc['roomObjects'] {
   const out: PlanDoc['roomObjects'] = {};
   for (const [id, o] of Object.entries(doc.roomObjects)) {
-    if (o.roomId === roomKeyStr) out[id] = o;
+    if (o.roomId === roomKeyStr) {
+      out[id] = o;
+    }
   }
   return out;
 }

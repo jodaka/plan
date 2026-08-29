@@ -82,7 +82,9 @@ export function fileStamp(): string {
 
 /** Triggers a browser download of `blob` under `filename` (client-only). */
 export function downloadBlob(filename: string, blob: Blob): void {
-  if (typeof document === 'undefined') return;
+  if (typeof document === 'undefined') {
+    return;
+  }
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;

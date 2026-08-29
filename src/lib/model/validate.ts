@@ -29,12 +29,18 @@ function sanitizeOpening(
   joints: PlanDoc['joints'],
   minLength: number,
 ): OpeningParts | null {
-  if (!isRecord(raw) || typeof raw.wallId !== 'string' || !num(raw.offset) || !num(raw.length)) return null;
+  if (!isRecord(raw) || typeof raw.wallId !== 'string' || !num(raw.offset) || !num(raw.length)) {
+    return null;
+  }
   const wall = walls[raw.wallId];
-  if (!wall) return null;
+  if (!wall) {
+    return null;
+  }
   const a = joints[wall.startJointId];
   const b = joints[wall.endJointId];
-  if (!a || !b) return null;
+  if (!a || !b) {
+    return null;
+  }
   const wallLen = dist(a, b);
   const length = Math.max(minLength, Math.min(wallLen, raw.length));
   const offset = Math.max(0, Math.min(Math.max(0, wallLen - length), raw.offset));
@@ -107,7 +113,9 @@ export function sanitizeDoc(data: unknown): PlanDoc | null {
   if (isRecord(data.windows)) {
     for (const [id, w] of Object.entries(data.windows)) {
       const parts = sanitizeOpening(w, walls, joints, MIN_WINDOW_LENGTH);
-      if (parts) windows[id] = { id, ...parts };
+      if (parts) {
+        windows[id] = { id, ...parts };
+      }
     }
   }
 
@@ -115,7 +123,9 @@ export function sanitizeDoc(data: unknown): PlanDoc | null {
   if (isRecord(data.doors)) {
     for (const [id, d] of Object.entries(data.doors)) {
       const parts = sanitizeOpening(d, walls, joints, MIN_DOOR_LENGTH);
-      if (!parts) continue;
+      if (!parts) {
+        continue;
+      }
       const mode: DoorMode = isRecord(d) && DOOR_MODES.includes(d.mode as DoorMode) ? (d.mode as DoorMode) : 'none';
       doors[id] = { id, ...parts, mode };
     }
@@ -124,7 +134,9 @@ export function sanitizeDoc(data: unknown): PlanDoc | null {
   const roomNames: PlanDoc['roomNames'] = {};
   if (isRecord(data.roomNames)) {
     for (const [key, name] of Object.entries(data.roomNames)) {
-      if (key !== '' && typeof name === 'string' && name.trim() !== '') roomNames[key] = name.trim();
+      if (key !== '' && typeof name === 'string' && name.trim() !== '') {
+        roomNames[key] = name.trim();
+      }
     }
   }
   return { version: 1, joints, walls, roomObjects, windows, doors, roomNames };

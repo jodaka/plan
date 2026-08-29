@@ -16,7 +16,9 @@ const b = $derived(joints[wall.endJointId]);
 
 /** mitered quad — corners close exactly against the neighbor at any angle */
 const corners = $derived.by(() => {
-  if (!a || !b) return null;
+  if (!a || !b) {
+    return null;
+  }
   return wallCorners(a, b, wall.thickness, neighbors.start, neighbors.end);
 });
 

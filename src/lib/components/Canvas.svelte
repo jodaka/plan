@@ -39,7 +39,9 @@ let fitted = false;
 
 // reset an active wall chain whenever the tool changes away from draw
 $effect(() => {
-  if (ui.tool !== 'draw') drawWall.end();
+  if (ui.tool !== 'draw') {
+    drawWall.end();
+  }
 });
 
 $effect(() => {
@@ -53,7 +55,9 @@ $effect(() => {
 // wheel must be a non-passive listener for preventDefault to work
 $effect(() => {
   const el = svgEl;
-  if (!el) return;
+  if (!el) {
+    return;
+  }
   const onWheel = (e: WheelEvent) => {
     e.preventDefault();
     const r = el.getBoundingClientRect();
@@ -65,7 +69,9 @@ $effect(() => {
 });
 
 function localPt(e: PointerEvent): { x: number; y: number } {
-  if (!svgEl) return { x: 0, y: 0 };
+  if (!svgEl) {
+    return { x: 0, y: 0 };
+  }
   const r = svgEl.getBoundingClientRect();
   return { x: e.clientX - r.left, y: e.clientY - r.top };
 }
@@ -75,10 +81,14 @@ function localPt(e: PointerEvent): { x: number; y: number } {
 // carry it — the canvas handlers never see it
 $effect(() => {
   const drag = ui.libraryDrag;
-  if (!drag) return;
+  if (!drag) {
+    return;
+  }
   const cat = catalogItem(drag.kind);
   const onMove = (e: PointerEvent) => {
-    if (!svgEl) return;
+    if (!svgEl) {
+      return;
+    }
     const lp = localPt(e);
     const world = viewport.toWorld(lp.x, lp.y);
     const { valid } = libraryDrop.dropInfo(drag.kind, world);
@@ -95,9 +105,13 @@ $effect(() => {
     const info = ui.libraryDrag;
     ui.cancelLibraryDrag();
     libraryDrop.setGhost(null);
-    if (!info || !svgEl) return;
+    if (!info || !svgEl) {
+      return;
+    }
     const rect = svgEl.getBoundingClientRect();
-    if (e.clientX < rect.left || e.clientX > rect.right || e.clientY < rect.top || e.clientY > rect.bottom) return;
+    if (e.clientX < rect.left || e.clientX > rect.right || e.clientY < rect.top || e.clientY > rect.bottom) {
+      return;
+    }
     const worldRaw = viewport.toWorld(e.clientX - rect.left, e.clientY - rect.top);
     const world = ui.snapEnabled ? { x: Math.round(worldRaw.x), y: Math.round(worldRaw.y) } : worldRaw;
     const { room, valid } = libraryDrop.dropInfo(info.kind, world);
@@ -128,7 +142,9 @@ $effect(() => {
 });
 
 function onPointerDown(e: PointerEvent) {
-  if (!svgEl || (panning && spaceHeld)) return;
+  if (!svgEl || (panning && spaceHeld)) {
+    return;
+  }
   try {
     svgEl.setPointerCapture(e.pointerId);
   } catch {
@@ -142,7 +158,9 @@ function onPointerDown(e: PointerEvent) {
     panLast = lp;
     return;
   }
-  if (e.button !== 0) return;
+  if (e.button !== 0) {
+    return;
+  }
 
   const target = e.target as Element;
   const jointHit = target.closest('[data-joint-id]')?.getAttribute('data-joint-id') ?? null;
@@ -172,28 +190,40 @@ function onPointerDown(e: PointerEvent) {
   }
   if (itemId && plan.doc.roomObjects[itemId]) {
     // items render above walls/openings, so they get priority here
-    if (itemHandle === 'rotate') itemDragGesture.startRotate(itemId);
-    else if (itemHandle?.startsWith('resize:')) itemDragGesture.startResize(itemId, Number(itemHandle.split(':')[1]));
-    else itemDragGesture.startMove(itemId, world);
+    if (itemHandle === 'rotate') {
+      itemDragGesture.startRotate(itemId);
+    } else if (itemHandle?.startsWith('resize:')) {
+      itemDragGesture.startResize(itemId, Number(itemHandle.split(':')[1]));
+    } else {
+      itemDragGesture.startMove(itemId, world);
+    }
     return;
   }
   if (doorId && plan.doc.doors[doorId]) {
     // doors beat windows and wall hit-lines: they render above both
-    if (target.closest('[data-door-handle]')) openingDrag.startResize('door', doorId, doorHandleSide, world);
-    else openingDrag.startSlide('door', doorId, world);
+    if (target.closest('[data-door-handle]')) {
+      openingDrag.startResize('door', doorId, doorHandleSide, world);
+    } else {
+      openingDrag.startSlide('door', doorId, world);
+    }
     return;
   }
   if (winId && plan.doc.windows[winId]) {
     // windows beat wall hit-lines: they render above the wall body
-    if (target.closest('[data-window-handle]')) openingDrag.startResize('window', winId, winHandleSide, world);
-    else openingDrag.startSlide('window', winId, world);
+    if (target.closest('[data-window-handle]')) {
+      openingDrag.startResize('window', winId, winHandleSide, world);
+    } else {
+      openingDrag.startSlide('window', winId, world);
+    }
     return;
   }
   if (roomKeyHit) {
     // the m² label doubles as the room's drag handle (rooms layer sits below
     // walls/openings, so those keep priority on shared pixels)
     const room = scene.rooms.find((r) => r.key === roomKeyHit);
-    if (room) roomDragGesture.start(room, world);
+    if (room) {
+      roomDragGesture.start(room, world);
+    }
     return;
   }
   if (wallHit && plan.doc.walls[wallHit]) {
@@ -257,7 +287,9 @@ function onPointerUp(e: PointerEvent) {
     itemDragGesture.commit();
     return;
   }
-  if (jointDrag.active) jointDrag.commit();
+  if (jointDrag.active) {
+    jointDrag.commit();
+  }
 }
 
 function onContextMenu(e: MouseEvent) {
@@ -266,7 +298,9 @@ function onContextMenu(e: MouseEvent) {
 }
 
 function onKeyDown(e: KeyboardEvent) {
-  if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+  if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+    return;
+  }
   if (e.code === 'Space') {
     e.preventDefault();
     spaceHeld = true;
@@ -282,13 +316,21 @@ function onKeyDown(e: KeyboardEvent) {
 }
 
 function onKeyUp(e: KeyboardEvent) {
-  if (e.code === 'Space') spaceHeld = false;
+  if (e.code === 'Space') {
+    spaceHeld = false;
+  }
 }
 
 const cursorClass = $derived.by(() => {
-  if (panning) return 'cursor-grabbing';
-  if (spaceHeld) return 'cursor-grab';
-  if (ui.tool === 'draw') return 'cursor-crosshair';
+  if (panning) {
+    return 'cursor-grabbing';
+  }
+  if (spaceHeld) {
+    return 'cursor-grab';
+  }
+  if (ui.tool === 'draw') {
+    return 'cursor-crosshair';
+  }
   return '';
 });
 </script>

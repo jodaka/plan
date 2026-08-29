@@ -12,17 +12,26 @@ const ATTACH_PX = 12;
 /** snapped drag position for a joint: grid + axis-align to the walls it belongs to */
 function resolveDragPoint(jointId: JointId, raw: Pt): Pt {
   const doc = plan.doc;
-  if (!ui.snapEnabled) return raw;
+  if (!ui.snapEnabled) {
+    return raw;
+  }
   const near = findJointNear(doc, raw, ATTACH_PX / viewport.scale);
-  if (near && near.id !== jointId) return { x: near.x, y: near.y };
+  if (near && near.id !== jointId) {
+    return { x: near.x, y: near.y };
+  }
   let p = snapPt(raw);
   for (const w of wallsAtJoint(doc, jointId)) {
     const otherId = w.startJointId === jointId ? w.endJointId : w.startJointId;
     const o = doc.joints[otherId];
-    if (!o) continue;
+    if (!o) {
+      continue;
+    }
     const align = axisAlign(o, p);
-    if (align === 'h') p = { x: p.x, y: o.y };
-    else if (align === 'v') p = { x: o.x, y: p.y };
+    if (align === 'h') {
+      p = { x: p.x, y: o.y };
+    } else if (align === 'v') {
+      p = { x: o.x, y: p.y };
+    }
   }
   return p;
 }
@@ -45,7 +54,9 @@ export const jointDrag = {
     dragMoved = false;
   },
   apply(world: Pt): void {
-    if (!dragJointId) return;
+    if (!dragJointId) {
+      return;
+    }
     dragMoved = true;
     drafts.setJoint(dragJointId, resolveDragPoint(dragJointId, world));
   },

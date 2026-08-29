@@ -35,12 +35,16 @@ export const roomDragGesture = {
     const origins: Record<JointId, Pt> = {};
     for (const jid of joints) {
       const j = plan.doc.joints[jid];
-      if (j) origins[jid] = { x: j.x, y: j.y };
+      if (j) {
+        origins[jid] = { x: j.x, y: j.y };
+      }
     }
     roomDrag = { key: room.key, wallIds: [...room.wallIds], origins, start: world };
   },
   apply(world: Pt): void {
-    if (!roomDrag) return;
+    if (!roomDrag) {
+      return;
+    }
     // snap the DELTA (not the positions): the room keeps its exact shape even
     // over legacy fractional joints (same rule as the old wall-body drag, §7)
     const dx = ui.snapEnabled ? snap(world.x - roomDrag.start.x) : world.x - roomDrag.start.x;

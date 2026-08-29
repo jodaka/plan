@@ -26,10 +26,14 @@ function openBase(target: OpenTarget, id: string): OpenDraft | null {
 /** projection of a world point onto the wall axis: cm from the start joint */
 function projOnWall(wallId: WallId, world: Pt): { s: number; len: number } | null {
   const w = plan.doc.walls[wallId];
-  if (!w) return null;
+  if (!w) {
+    return null;
+  }
   const a = scene.renderJoints[w.startJointId];
   const b = scene.renderJoints[w.endJointId];
-  if (!a || !b) return null;
+  if (!a || !b) {
+    return null;
+  }
   const u = unit({ x: b.x - a.x, y: b.y - a.y });
   return { s: (world.x - a.x) * u.x + (world.y - a.y) * u.y, len: dist(a, b) };
 }
@@ -41,9 +45,13 @@ function wallOf(target: OpenTarget, id: string): WallId | null {
 
 function select(target: OpenTarget, id: string, wallId: WallId): void {
   ui.select(wallId); // clears any opening selection…
-  if (target === 'window') ui.selectWindow(id);
+  if (target === 'window') {
+    ui.selectWindow(id);
+  }
   // …then selects this one; wall stays as context
-  else ui.selectDoor(id);
+  else {
+    ui.selectDoor(id);
+  }
 }
 
 /** opening drag gesture (windows + doors share the wall axis): slide the body
@@ -56,7 +64,9 @@ export const openingDrag = {
     const wallId = wallOf(target, id);
     const base = openBase(target, id);
     const proj = wallId && projOnWall(wallId, world);
-    if (!wallId || !base || !proj) return;
+    if (!wallId || !base || !proj) {
+      return;
+    }
     select(target, id, wallId);
     // snap the grab point too, so offset = snap(s) − grab stays on-grid
     openDrag = {
@@ -68,12 +78,16 @@ export const openingDrag = {
   },
   startResize(target: OpenTarget, id: string, side: 'start' | 'end', world: Pt): void {
     const wallId = wallOf(target, id);
-    if (!wallId || !openBase(target, id) || !projOnWall(wallId, world)) return;
+    if (!wallId || !openBase(target, id) || !projOnWall(wallId, world)) {
+      return;
+    }
     select(target, id, wallId);
     openDrag = { kind: 'resize', target, id, side };
   },
   apply(world: Pt): void {
-    if (!openDrag) return;
+    if (!openDrag) {
+      return;
+    }
     const drag = openDrag;
     const base = openBase(drag.target, drag.id);
     const wallId = wallOf(drag.target, drag.id);

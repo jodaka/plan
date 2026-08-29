@@ -24,11 +24,21 @@ let errorTimer: ReturnType<typeof setTimeout> | undefined;
 type SelectionKind = 'wall' | 'window' | 'door' | 'item' | 'room';
 
 function clearSelection(keep: SelectionKind): void {
-  if (keep !== 'wall') selectedWallId = null;
-  if (keep !== 'window') selectedWindowId = null;
-  if (keep !== 'door') selectedDoorId = null;
-  if (keep !== 'item') selectedItemId = null;
-  if (keep !== 'room') selectedRoomKey = null;
+  if (keep !== 'wall') {
+    selectedWallId = null;
+  }
+  if (keep !== 'window') {
+    selectedWindowId = null;
+  }
+  if (keep !== 'door') {
+    selectedDoorId = null;
+  }
+  if (keep !== 'item') {
+    selectedItemId = null;
+  }
+  if (keep !== 'room') {
+    selectedRoomKey = null;
+  }
 }
 
 export const ui = {
@@ -37,7 +47,9 @@ export const ui = {
   },
   setTool(t: Tool): void {
     tool = t;
-    if (t === 'draw') selectedWallId = null;
+    if (t === 'draw') {
+      selectedWallId = null;
+    }
   },
 
   get snapEnabled(): boolean {

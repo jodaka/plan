@@ -219,6 +219,12 @@ value is what the wall actually measures clear between its neighbors.
   one-time initial fit, debounced save, resetting the draw chain on tool change. The
   svelte-autofixer heuristic flags "function call inside $effect" on these; they are
   reviewed and intentional (the suggestion itself says to ignore such cases).
+- The item-overlap tints in `canvas/scene.svelte.ts` read `Date.now()` inside
+  `renderItems` (`$derived.by`) to throttle the pairwise SAT recomputation to at most
+  once per 200 ms while an item gesture is in flight (idle refreshes are unthrottled,
+  so committed state is always exact). This is a deliberate impurity: the clock read is
+  untracked, the cache can only lag the cosmetic tint — never item positions or
+  validity — and gesture end always changes a tracked dependency, forcing a fresh pass.
 
 ## 11. Testing
 
