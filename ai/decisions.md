@@ -23,7 +23,7 @@ index; the current doc is just `entries[index].doc`.
   justify commands (collaboration, action-stream sync, macros) are not requirements.
   Undo-by-replay needs checkpoints anyway — which are snapshots.
 - Memory numbers: with structural sharing a history entry only allocates what changed
-  (~6 KB for a corner drag in a 300-wall plan); 500-entry cap ≈ a few MB.
+  (~6 KB for a corner drag in a 300-wall plan); 50-entry cap ≈ well under a MB.
 
 **Consequences / invariants**:
 - All mutations are pure functions in `src/lib/model/ops.ts`: `(doc, …) => doc`, never
@@ -53,7 +53,7 @@ and angle readouts between connected walls. With joint entities both fall out na
 **Units**: 1 world unit = 1 cm everywhere. Snap grid = 1 cm. Only the view layer converts
 to pixels (`viewport.scale` px per cm).
 
-## 3. Rendering: SVG, walls as thick `<line>` elements
+## 3. Rendering: SVG, walls as mitered polygons
 
 **Why SVG over Canvas 2D**: DOM events give free hit-testing and per-element cursors;
 vector output stays crisp at any zoom; floor-plan scale (hundreds of walls) is trivial for
@@ -180,7 +180,8 @@ value is what the wall actually measures clear between its neighbors.
 - Angle badges (during joint drag): per connected wall, absolute orientation with green
   H/V chip when axis-locked, plus the pairwise angle between connected walls (purple),
   positioned in screen space around the dragged joint. Rendered from a `$derived` reading
-  `drafts`, so they appear only mid-gesture.
+  `drafts`, so they appear only mid-gesture. *(Removed later as clutter — see §5's note;
+  the angle arcs + dimension lines carry the same information on the geometry.)*
 
 ## 8. Pointer handling details
 
@@ -276,21 +277,25 @@ needs a number, not a string.
 - Grid visibility defaults to OFF (spec: invisible grid defines snapping; toggle exists).
 - No marquee/multi-select, no wall splitting. Doors exist since v0.3.0 (§17).
 - Inspector length edits commit per `change` event (spinner clicks can create several
-  history entries; capped by the 500-entry limit).
+  history entries; capped by the 50-entry limit).
 - Extension geometry assumes (near-)perpendicular corners; non-right angles use the same
   t/2 extension (standard in lightweight planners, slightly imperfect miters).
 
-## 15. Rooms are derived state, never persisted
+## 15. Rooms are derived state — geometry never persisted
 
 **Decision**: a room is any bounded face of the wall graph, recomputed on the fly
-(`model/rooms.ts` → `findRooms(joints, walls)`); `PlanDoc` is unchanged and nothing about
-rooms is stored, saved or exported.
+(`model/rooms.ts` → `findRooms(joints, walls)`); the room entity itself carries NO
+persisted data — its geometry, area and identity (`key`) are all derived. The ONE
+exception is user-authored DECORATION attached to a room: the optional name lives in
+`doc.roomNames` keyed by the room's stable wall-set key (§ "Room selection & names"
+in §18). That is by design: the name decorates whatever room currently has that wall
+set, so the room stays fully calculated while its label survives destroy/redraw —
+the room is still never stored; only the (key → name) mapping is.
 
 **Why**: the requirements ("closed walls figure ⇒ room", "delete one wall ⇒ room is
 gone") describe fully derived state. Deriving it means every mutation path (delete wall,
 move joint, thickness change, import, undo) updates rooms automatically with zero
-bookkeeping and no new ways to desync. Persisting rooms would buy nothing: they carry no
-user-editable properties (yet).
+bookkeeping and no new ways to desync. Persisting room geometry would buy nothing.
 
 **Algorithm**: planar face traversal over half-edges. Each wall contributes two directed
 half-edges; at each joint the incident directions are sorted CCW by angle; walking the

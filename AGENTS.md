@@ -47,7 +47,9 @@ bun test           # unit tests (bun:test, tests/ directory)
   angles and inner spans), outer span, orientation, delete
 - Selected-wall overlay: outer/inner dimension lines + angle arcs at connected joints
 - On-canvas dimensions for the selected wall: outer + inner dimension lines
-- Rooms: any closed wall figure is a room (derived, never persisted) — painted
+- Rooms: any closed wall figure is a room (derived — the room entity is never
+  persisted; the optional name is the sole exception, stored in `doc.roomNames` by
+  stable key) — painted
   `rgb(250, 235, 215)` under the walls with the clear-floor area (inner m², inset by
   wall halves) at its centroid; deleting or moving walls updates/dissolves rooms
   automatically; the m² label doubles as a drag handle — dragging it translates the
@@ -146,7 +148,7 @@ src/lib/
     Toolbar.svelte         # tools, snap/grid, zoom, undo/redo, import/export
     InspectorPanel.svelte  # selected-entity numeric editing + item library palette
 src/routes/+page.svelte    # layout, global shortcuts, autosave effect
-tests/model.test.ts        # bun:test unit tests for geometry + ops
+tests/                     # bun:test unit tests: model (geometry + ops), rooms, io
 ```
 
 ## Invariants (do not break)

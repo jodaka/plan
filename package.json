@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite dev",
     "build": "vite build",
+    "preview": "vite preview",
     "prepare": "svelte-kit sync || echo ''; lefthook install",
     "check": "svelte-kit sync && bun run --parallel check:svelte lint",
     "check:svelte": "svelte-check --tsconfig ./tsconfig.json",

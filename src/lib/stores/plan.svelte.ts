@@ -7,7 +7,7 @@ interface HistoryEntry {
   doc: PlanDoc;
 }
 
-const HISTORY_LIMIT = 500;
+const HISTORY_LIMIT = 50;
 
 let entries = $state.raw<HistoryEntry[]>([{ label: 'Start', doc: loadSavedDoc() ?? emptyDoc() }]);
 let index = $state(0);
