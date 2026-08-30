@@ -2,7 +2,8 @@
 import Canvas from '$lib/components/Canvas.svelte';
 import InspectorPanel from '$lib/components/InspectorPanel.svelte';
 import Toolbar from '$lib/components/Toolbar.svelte';
-import { deleteDoor, deleteWall, deleteWindow, removeRoomItem } from '$lib/model/ops';
+import { itemPlacementInvalid } from '$lib/canvas/scene.svelte';
+import { deleteDoor, deleteWall, deleteWindow, moveItem, removeRoomItem } from '$lib/model/ops';
 import { catalogLabel, setLabelLocale } from '$lib/items/registry';
 import { saveDoc } from '$lib/model/storage';
 import { getLocale } from '$lib/paraglide/runtime';
@@ -51,6 +52,24 @@ function deleteSelected() {
   ui.select(null);
 }
 
+/** Nudges the selected item by 1 cm per keypress — each keypress is its own
+ * gesture and commits its own history entry. Rejected with a toast when the
+ * target placement would hit a wall or leave the room (same rule as drags). */
+function nudgeSelected(dx: number, dy: number) {
+  const itemId = ui.selectedItemId;
+  const item = itemId ? plan.doc.roomObjects[itemId] : undefined;
+  if (!item) {
+    return;
+  }
+  const x = item.x + dx;
+  const y = item.y + dy;
+  if (itemPlacementInvalid({ ...item, x, y })) {
+    ui.showError(m.canvas__errorItemInvalid({ label: catalogLabel(item.kind) }));
+    return;
+  }
+  plan.commit(m.history__moveItem({ label: catalogLabel(item.kind) }), moveItem(plan.doc, item.id, x, y));
+}
+
 function onKeydown(e: KeyboardEvent) {
   if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
     return;
@@ -69,6 +88,11 @@ function onKeydown(e: KeyboardEvent) {
     plan.redo();
   } else if (e.key === 'Backspace' || e.key === 'Delete') {
     deleteSelected();
+  } else if (ui.tool === 'select' && e.key.startsWith('Arrow')) {
+    e.preventDefault();
+    const dx = e.key === 'ArrowLeft' ? -1 : e.key === 'ArrowRight' ? 1 : 0;
+    const dy = e.key === 'ArrowUp' ? -1 : e.key === 'ArrowDown' ? 1 : 0;
+    nudgeSelected(dx, dy);
   } else if (key === 'v') {
     ui.setTool('select');
   } else if (key === 'd') {

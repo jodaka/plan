@@ -121,6 +121,7 @@ export function catalogItem(kind: string): CatalogItem {
     d: def.defaults.d,
     minW: def.defaults.minW,
     minD: def.defaults.minD,
+    resizeMode: def.resizeMode,
   };
 }
 

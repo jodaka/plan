@@ -23,6 +23,8 @@ export interface CatalogItem {
   d: number;
   minW: number;
   minD: number;
+  /** How `resizeItem` clamps: bbox = free w/d; fixed-aspect = w===d (round). */
+  resizeMode?: ResizeMode;
 }
 
 export interface CatalogCategory {

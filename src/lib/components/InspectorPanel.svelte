@@ -35,6 +35,7 @@ const wall = $derived(ui.selectedWallId ? plan.doc.walls[ui.selectedWallId] : un
 const win = $derived(ui.selectedWindowId ? plan.doc.windows[ui.selectedWindowId] : undefined);
 const door = $derived(ui.selectedDoorId ? plan.doc.doors[ui.selectedDoorId] : undefined);
 const item = $derived(ui.selectedItemId ? plan.doc.roomObjects[ui.selectedItemId] : undefined);
+const itemRound = $derived(item !== undefined && catalogItem(item.kind).resizeMode === 'fixed-aspect');
 const room = $derived.by(() => {
   const key = ui.selectedRoomKey;
   if (!key) {
@@ -286,24 +287,36 @@ function confirmMessage(roomCount: number, objectCount: number, winCount: number
           <button class="danger" onclick={removeDoor}>{m.inspector__deleteDoorButton()}</button>
         {:else if item}
           <h3>{catalogLabel(item.kind)}</h3>
-          <label>
-            <span>{m.inspector__widthCm()}</span>
-            <input
-              type="number"
-              min={catalogItem(item.kind).minW}
-              step="1"
-              value={Math.round(item.w * 10) / 10}
-              onchange={(e) => applyItemSize(e.currentTarget.valueAsNumber, item.d)}>
-          </label>
-          <label>
-            <span>{m.inspector__depthCm()}</span>
-            <input
-              type="number"
-              min={catalogItem(item.kind).minD}
-              step="1"
-              value={Math.round(item.d * 10) / 10}
-              onchange={(e) => applyItemSize(item.w, e.currentTarget.valueAsNumber)}>
-          </label>
+          {#if itemRound}
+            <label>
+              <span>{m.inspector__diameterCm()}</span>
+              <input
+                type="number"
+                min={catalogItem(item.kind).minW}
+                step="1"
+                value={Math.round(item.w * 10) / 10}
+                onchange={(e) => applyItemSize(e.currentTarget.valueAsNumber, e.currentTarget.valueAsNumber)}>
+            </label>
+          {:else}
+            <label>
+              <span>{m.inspector__widthCm()}</span>
+              <input
+                type="number"
+                min={catalogItem(item.kind).minW}
+                step="1"
+                value={Math.round(item.w * 10) / 10}
+                onchange={(e) => applyItemSize(e.currentTarget.valueAsNumber, item.d)}>
+            </label>
+            <label>
+              <span>{m.inspector__depthCm()}</span>
+              <input
+                type="number"
+                min={catalogItem(item.kind).minD}
+                step="1"
+                value={Math.round(item.d * 10) / 10}
+                onchange={(e) => applyItemSize(item.w, e.currentTarget.valueAsNumber)}>
+            </label>
+          {/if}
           <label>
             <span>{m.inspector__rotationDeg()}</span>
             <input

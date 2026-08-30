@@ -38,6 +38,7 @@
 	"inspector__lengthCm": "Length, cm",
 	"inspector__widthCm": "Width, cm",
 	"inspector__depthCm": "Depth, cm",
+	"inspector__diameterCm": "Diameter, cm",
 	"inspector__rotationDeg": "Rotation, °",
 	"inspector__thicknessCm": "Thickness, cm",
 	"inspector__windowPosition": "Position: {pos} cm from wall start",

@@ -41,6 +41,23 @@ import { jointDrag } from './jointDrag.svelte';
 /** collision checks shrink polygons by a hair so exact-flush contact passes */
 export const COLLISION_EPS = 0.01;
 
+/**
+ * Hard-constraint validity of an arbitrary placement of an existing item
+ * (arrow-key nudge): true when it would intersect a wall/opening or poke out
+ * of its room. Sibling overlap is NOT checked — it is allowed, only tinted.
+ * Uses the same math as the live drag pipeline so keyboard and mouse can
+ * never disagree about what is reachable.
+ */
+export function itemPlacementInvalid(obj: RoomObject): boolean {
+  const local = collisionPolys(obj.kind, obj.w, obj.d);
+  const world = transformPolys(local, obj.x, obj.y, obj.rotation);
+  const shrunk = world.map((poly: Pt[]) => shrinkPolygon(poly, COLLISION_EPS));
+  const room = roomByKey.get(obj.roomId);
+  const hitsWall = shrunk.some((sp: Pt[]) => wallPolys.some((wp: Pt[]) => polygonsIntersect(sp, wp)));
+  const inside = !room || polysInside(shrunk, room.innerPts);
+  return hitsWall || !inside;
+}
+
 export interface RenderItem {
   obj: RoomObject;
   label: string;

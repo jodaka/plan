@@ -38,6 +38,7 @@
 	"inspector__lengthCm": "Длина, см",
 	"inspector__widthCm": "Ширина, см",
 	"inspector__depthCm": "Глубина, см",
+	"inspector__diameterCm": "Диаметр, см",
 	"inspector__rotationDeg": "Поворот, °",
 	"inspector__thicknessCm": "Толщина, см",
 	"inspector__windowPosition": "Положение: {pos} см от начала стены",
