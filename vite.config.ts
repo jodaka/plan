@@ -1,9 +1,14 @@
 import { paraglideVitePlugin } from '@inlang/paraglide-js';
-import adapter from '@sveltejs/adapter-auto';
+import adapter from '@sveltejs/adapter-static';
 import { sveltekit } from '@sveltejs/kit/vite';
 import { defineConfig } from 'vite';
 
 export default defineConfig({
+	build: {
+		// Client-only app — emit modern JS and skip legacy polyfill downsizing.
+		target: 'esnext',
+		sourcemap: false
+	},
 	plugins: [
 		sveltekit({
 			compilerOptions: {
@@ -11,10 +16,14 @@ export default defineConfig({
 				runes: ({ filename }) => filename.split(/[/\\]/).includes('node_modules') ? undefined : true
 			},
 
-			// adapter-auto only supports some environments, see https://svelte.dev/docs/kit/adapter-auto for a list.
-			// If your environment is not supported, or you settled on a specific environment, switch out the adapter.
-			// See https://svelte.dev/docs/kit/adapters for more information about adapters.
-			adapter: adapter()
+			// Fully static, precompressed (gzip + brotli) client-only build in ./build.
+			adapter: adapter({
+				pages: 'build',
+				assets: 'build',
+				fallback: undefined,
+				precompress: true,
+				strict: true
+			})
 		}),
 
 		paraglideVitePlugin({
