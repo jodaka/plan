@@ -1,3 +1,3 @@
 ## У нас был какой-то
-<img src="./plan.svg" />
+<img src="./static/plan.svg" />
 и мы его придерживались

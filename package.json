@@ -13,7 +13,7 @@
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
     "format": "biome format --write .",
-    "deploy": "rsync -avz /build/ vpn.kudris.com:/home/data/kudris.com/plan/"
+    "deploy": "rsync -avz ./build/ vpn.kudris.com:/home/data/kudris.com/plan/"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.10",
