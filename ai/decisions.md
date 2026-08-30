@@ -515,10 +515,30 @@ plan from data (a second renderer to keep in sync), it CLONES the live `svg.canv
 — the export is by construction exactly what the user sees, all layers included.
 The clone is made standalone by:
 
-- **Inlining styles**: walks original + clone in parallel and copies every computed
-  style property onto an inline `style` attribute (preserving `!important`), EXCEPT
-  transform-ish properties (`transform`, `translate`, `scale`, `rotate`,
-  `transform-origin`) — those live in attributes and must not double-apply.
+- **Inlining styles**: walks original + clone in parallel and copies a WHITELIST of
+  SVG-visual computed properties (`fill`, `stroke*`, `opacity`, `paint-order`,
+  `font*`, `text-anchor`, `dominant-baseline`, … — the `EXPORT_PROPS` set in
+  `svgExport.ts`) onto an inline `style` attribute (preserving `!important`).
+  Earlier versions dumped ALL ~300 computed properties per node, which made
+  exports ~100× larger than the plan data (1.7 MB for a 13 KB plan) — layout and
+  interaction props are noise for a standalone drawing. Transform-ish properties
+  (`transform`, `translate`, `scale`, `rotate`, `transform-origin`) are never
+  inlined — they live in attributes and must not double-apply.
+- **Pruning editor-only nodes**: the clone drops everything that exists only for
+  hit-testing and editing (selector `RUNTIME_SELECTOR`): invisible hit polygons
+  (`.hit`, `.label-hit`), selection outlines (`.outline` — wall/window/door/item
+  "selected" ring), drag handles (`.handle`, `.rot-stem`), joint dots
+  (`.joint-dot`), and the measure/selection overlays (`.sel-overlay`,
+  `.wall-dims`, `.angle-arcs`, `.gap-hints`, `.ruler`). `class` and `data-*`
+  attributes are stripped too. Verified: exported file stays visually identical
+  to the live canvas (room labels hidden under furniture in-app are equally
+  hidden in the export — z-order is cloned as-is).
+- **Text halos without `paint-order`**: room labels draw a white halo via
+  `paint-order: stroke`, which many non-browser SVG renderers (librsvg, older
+  viewers) ignore — they then paint the wide white stroke OVER the glyphs,
+  leaving only the halo. `splitTextHalos` replaces each stroked `<text>` with
+  TWO stacked copies — a stroke-only halo behind a fill-only main — so the
+  effect is renderer-independent.
 - **Recomputing the viewport**: bbox over wall joints + item collision polys
   (world-transformed), padded by `20 + maxThickness/2` so strokes don't clip.
   COUPLING: the viewport derives from COLLISION shapes, so an item's collision
@@ -526,7 +546,8 @@ The clone is made standalone by:
   plan keeps the current viewBox instead.
 - **Cleaning up**: pan/zoom transform removed from the root `<g>`, grid lines
   (`.line[stroke="#e2e8f0"]`) stripped, white background rect prepended,
-  `viewBox` + `width`/`height` set at 15 px/cm (`PX_PER_CM`).
+  `viewBox` + `width`/`height` set at 15 px/cm (`PX_PER_CM`). On a 13 KB plan
+  this yields an ~85 KB SVG (was ~1.7 MB before the whitelist + pruning).
 
 Download is the same colon-free timestamp convention as JSON
 (`floorplan_<YYYY-MM-DD_HH-mm-ss local>.svg`) via Blob + object URL, with
