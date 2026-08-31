@@ -1,0 +1,101 @@
+name: Release
+
+# Builds native desktop bundles and attaches them to a draft GitHub release.
+#
+# Two ways to trigger:
+#   1. Actions tab → Release → Run workflow → enter the version (e.g. 0.3.0).
+#      The v0.3.0 tag is created and pushed for you, and the bundle version
+#      in tauri.conf.json is synced for the build.
+#   2. Push an existing tag: git tag v0.3.0 && git push origin v0.3.0
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release, e.g. 0.3.0'
+        required: true
+        type: string
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    permissions:
+      contents: write # create the tag, the draft release, and upload artifacts
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # macOS arm64 (Apple Silicon)
+          - platform: macos-latest
+            rust-target: aarch64-apple-darwin
+          # macOS x86_64 (Intel)
+          - platform: macos-latest
+            rust-target: x86_64-apple-darwin
+          # Windows (NSIS installer + MSI)
+          - platform: windows-latest
+            rust-target: ''
+          # Linux (deb + rpm + AppImage)
+          - platform: ubuntu-22.04
+            rust-target: ''
+
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Determine release tag (create it on manual dispatch)
+        id: rel
+        shell: bash
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          if [ -n "$VERSION" ]; then
+            TAG="v$VERSION"
+            git tag "$TAG"
+            git push origin "$TAG"
+          else
+            TAG="$GITHUB_REF_NAME"
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Sync bundle version with the released version (manual dispatch)
+        if: github.event_name == 'workflow_dispatch'
+        shell: bash
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          bun -e "const f='src-tauri/tauri.conf.json';const j=await Bun.file(f).json();j.version=process.env.VERSION;await Bun.write(f,JSON.stringify(j,null,2)+'\n')"
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust-target }}
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri -> target'
+
+      - name: Install Linux dependencies (webkit2gtk etc.)
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
+
+      - name: Install frontend dependencies
+        run: bun install --frozen-lockfile
+
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          projectPath: .
+          tagName: ${{ steps.rel.outputs.tag }}
+          releaseName: 'Floorplanner ${{ steps.rel.outputs.tag }}'
+          releaseBody: 'Native desktop builds of Floorplanner.'
+          releaseDraft: true
+          prerelease: false
+          args: ${{ matrix.rust-target != '' && format('--target {0}', matrix.rust-target) || '' }}

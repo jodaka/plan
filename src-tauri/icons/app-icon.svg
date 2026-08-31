@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <rect width="1024" height="1024" rx="224" fill="#2b303b"/>
+  <!-- room walls with door gap -->
+  <g stroke="#f5f0e6" stroke-width="60" fill="none">
+    <path d="M560 312 H262 V762 H440"/>
+    <path d="M688 312 H762 V762 H640"/>
+  </g>
+  <!-- window on the top wall -->
+  <path d="M352 312 H520" stroke="#f0a832" stroke-width="60" fill="none"/>
+  <!-- door leaf + swing arc -->
+  <path d="M560 312 V552" stroke="#f5f0e6" stroke-width="16" fill="none"/>
+  <path d="M560 552 A240 240 0 0 0 800 312" stroke="#f5f0e6" stroke-width="12" stroke-dasharray="28 24" fill="none" opacity="0.65"/>
+</svg>

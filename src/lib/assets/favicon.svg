@@ -1,23 +1,19 @@
-<?xml version="1.0" encoding="UTF-8" standalone="no" ?>
-<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
-<svg
-  width="100%"
-  height="100%"
-  viewBox="0 0 124 181"
-  version="1.1"
-  xmlns="http://www.w3.org/2000/svg"
-  xmlns:xlink="http://www.w3.org/1999/xlink"
-  xml:space="preserve"
-  xmlns:serif="http://www.serif.com/"
-  style="fill-rule:evenodd;clip-rule:evenodd;stroke-linecap:round;stroke-linejoin:round;">
-  <g>
-    <g>
-      <path d="M62,31l0,-25" style="fill:none;fill-rule:nonzero;stroke:#111;stroke-width:12px;" />
-      <circle cx="62" cy="44" r="22" style="fill:none;stroke:#111;stroke-width:12px;" />
-      <path d="M49,64l-41,109" style="fill:none;fill-rule:nonzero;stroke:#111;stroke-width:16px;" />
-      <path d="M75,64l41,109" style="fill:none;fill-rule:nonzero;stroke:#111;stroke-width:16px;" />
-      <path d="M24,112l16,6" style="fill:none;fill-rule:nonzero;stroke:#111;stroke-width:9px;" />
-      <path d="M100,112l-16,6" style="fill:none;fill-rule:nonzero;stroke:#111;stroke-width:9px;" />
-    </g>
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <rect width="1024" height="1024" rx="224" fill="#2b303b" />
+  <!-- room walls with door gap -->
+  <g stroke="#f5f0e6" stroke-width="60" fill="none">
+    <path d="M560 312 H262 V762 H440" />
+    <path d="M688 312 H762 V762 H640" />
   </g>
+  <!-- window on the top wall -->
+  <path d="M352 312 H520" stroke="#f0a832" stroke-width="60" fill="none" />
+  <!-- door leaf + swing arc -->
+  <path d="M560 312 V552" stroke="#f5f0e6" stroke-width="16" fill="none" />
+  <path
+    d="M560 552 A240 240 0 0 0 800 312"
+    stroke="#f5f0e6"
+    stroke-width="12"
+    stroke-dasharray="28 24"
+    fill="none"
+    opacity="0.65" />
 </svg>

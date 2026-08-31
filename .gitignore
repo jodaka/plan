@@ -8,6 +8,10 @@ node_modules
 /.svelte-kit
 /build
 
+# Tauri
+/src-tauri/target
+/src-tauri/gen/schemas
+
 # OS
 .DS_Store
 Thumbs.db
