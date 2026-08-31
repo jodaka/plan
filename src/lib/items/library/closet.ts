@@ -6,11 +6,11 @@ const def: ItemDef = {
   category: 'living-room',
   defaults: { w: 120, d: 60, minW: 50, minD: 40 },
   /** top view: body + a pair of door leaves along one side, handles at the seam */
-  view: (w, d, scale) => {
+  view: (w, d) => {
     const hw = w / 2;
     const hd = d / 2;
     const leaf = Math.min(3, w * 0.1, d * 0.1);
-    const r = 1.5 / scale;
+    const r = 1.5;
     if (w >= d) {
       const hx = Math.min(4, w * 0.15);
       return [

@@ -85,8 +85,8 @@ export function collisionPolys(kind: string, w: number, d: number): Pt[][] {
 }
 
 /** Declarative view shapes for a kind — plain rect for unknown kinds. */
-export function itemShapes(kind: string, w: number, d: number, scale: number): ItemShape[] {
-  return (resolveDef(kind).view ?? rectView)(w, d, scale);
+export function itemShapes(kind: string, w: number, d: number): ItemShape[] {
+  return (resolveDef(kind).view ?? rectView)(w, d);
 }
 
 /** Shared resize clamp (used by `resizeItem` AND the live drag preview):

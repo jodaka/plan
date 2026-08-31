@@ -78,6 +78,21 @@ function applyQueuedZoom() {
   wheelQueue = [];
 }
 
+// wheel deltas arrive in different units per browser/device: pixels (trackpads,
+// Chromium mice), LINES (Firefox physical mouse wheels, deltaMode 1 — ~3 per
+// tick) or pages (deltaMode 2, rare). Normalize to pixels first, otherwise FF
+// mice zoom by ~0.5% per tick and the wheel feels broken/laggy.
+function wheelDeltaPx(e: WheelEvent): number {
+  const lineHeight = 16;
+  if (e.deltaMode === 1) {
+    return e.deltaY * lineHeight;
+  }
+  if (e.deltaMode === 2) {
+    return e.deltaY * lineHeight * 20;
+  }
+  return e.deltaY;
+}
+
 // wheel must be a non-passive listener for preventDefault to work
 $effect(() => {
   const el = svgEl;
@@ -86,7 +101,7 @@ $effect(() => {
   }
   const onWheel = (e: WheelEvent) => {
     e.preventDefault();
-    const factor = Math.exp(-e.deltaY * (e.ctrlKey ? ZOOM_PINCH_SENSITIVITY : ZOOM_WHEEL_SENSITIVITY));
+    const factor = Math.exp(-wheelDeltaPx(e) * (e.ctrlKey ? ZOOM_PINCH_SENSITIVITY : ZOOM_WHEEL_SENSITIVITY));
     wheelQueue.push({ x: e.clientX, y: e.clientY, factor });
     if (wheelFrame === null) {
       wheelFrame = requestAnimationFrame(applyQueuedZoom);
@@ -385,6 +400,7 @@ const cursorClass = $derived.by(() => {
     aria-label="Floor plan canvas"
     width={wrapW}
     height={wrapH}
+    style="--inv: {1 / viewport.scale}"
     onpointerdown={onPointerDown}
     onpointermove={onPointerMove}
     onpointerup={onPointerUp}
@@ -403,7 +419,7 @@ const cursorClass = $derived.by(() => {
               d="M 0 0 H {scene.grid.step} V {scene.grid.step} H 0 Z"
               fill="none"
               stroke="#e2e8f0"
-              stroke-width={1 / viewport.scale} />
+              style="stroke-width: calc(1px * var(--inv));" />
           </pattern>
         </defs>
         <rect
@@ -418,7 +434,7 @@ const cursorClass = $derived.by(() => {
       {#each scene.rooms as room, i (i)}
         <!-- label = clear-floor (inner) area: the usable m² inside the walls;
              it doubles as the room's drag handle -->
-        <RoomView pts={room.pts} areaCm2={room.innerAreaCm2} scale={viewport.scale} roomKey={room.key} />
+        <RoomView pts={room.pts} areaCm2={room.innerAreaCm2} roomKey={room.key} />
       {/each}
 
       {#each Object.values(plan.doc.walls) as wall (wall.id)}
@@ -467,7 +483,6 @@ const cursorClass = $derived.by(() => {
           w={iv.obj.w}
           d={iv.obj.d}
           rotation={iv.obj.rotation}
-          scale={viewport.scale}
           selected={iv.obj.id === ui.selectedItemId}
           overlapping={iv.overlapping}
           invalid={iv.invalid}
@@ -476,7 +491,7 @@ const cursorClass = $derived.by(() => {
 
       <!-- joint dots: make connection points visible for closing chains -->
       {#each Object.values(scene.renderJoints) as j (j.id)}
-        <circle class="joint-dot" cx={j.x} cy={j.y} r={3 / viewport.scale} />
+        <circle class="joint-dot" cx={j.x} cy={j.y} style="r: calc(3px * var(--inv));" />
       {/each}
 
       {#each scene.highlights as h (h.id)}
@@ -486,7 +501,7 @@ const cursorClass = $derived.by(() => {
           points={pts}
           fill="#3b82f6"
           stroke="#3b82f6"
-          stroke-width={6 / viewport.scale}
+          style="stroke-width: calc(6px * var(--inv));"
           opacity="0.35" />
         <polygon class="sel-overlay" points={pts} fill="#2563eb" />
         <WallDims {...h.dims} />
@@ -512,8 +527,7 @@ const cursorClass = $derived.by(() => {
           data-joint-id={j.id}
           cx={j.x}
           cy={j.y}
-          r={6 / viewport.scale}
-          stroke-width={2 / viewport.scale} />
+          style="r: calc(6px * var(--inv)); stroke-width: calc(2px * var(--inv));" />
       {/each}
 
       <!-- opening resize handles: topmost so wall handles can't steal their clicks -->
@@ -524,8 +538,7 @@ const cursorClass = $derived.by(() => {
           data-window-handle={hp.side}
           cx={hp.p.x}
           cy={hp.p.y}
-          r={6 / viewport.scale}
-          stroke-width={2 / viewport.scale} />
+          style="r: calc(6px * var(--inv)); stroke-width: calc(2px * var(--inv));" />
       {/each}
       {#each scene.selectedDoorHandles as hp (hp.side)}
         <circle
@@ -534,8 +547,7 @@ const cursorClass = $derived.by(() => {
           data-door-handle={hp.side}
           cx={hp.p.x}
           cy={hp.p.y}
-          r={6 / viewport.scale}
-          stroke-width={2 / viewport.scale} />
+          style="r: calc(6px * var(--inv)); stroke-width: calc(2px * var(--inv));" />
       {/each}
 
       <!-- item handles: topmost — 4 resize corners + rotation lollipop -->
@@ -546,8 +558,7 @@ const cursorClass = $derived.by(() => {
           data-item-handle={`resize:${hp.corner}`}
           cx={hp.p.x}
           cy={hp.p.y}
-          r={5 / viewport.scale}
-          stroke-width={2 / viewport.scale} />
+          style="r: calc(5px * var(--inv)); stroke-width: calc(2px * var(--inv));" />
       {/each}
       {#if scene.rotateHandle}
         <line
@@ -556,23 +567,28 @@ const cursorClass = $derived.by(() => {
           y1={scene.rotateHandle.from.y}
           x2={scene.rotateHandle.p.x}
           y2={scene.rotateHandle.p.y}
-          stroke-width={1 / viewport.scale} />
+          style="stroke-width: calc(1px * var(--inv));" />
         <circle
           class="handle item-rotate-handle"
           data-item-id={scene.rotateHandle.id}
           data-item-handle="rotate"
           cx={scene.rotateHandle.p.x}
           cy={scene.rotateHandle.p.y}
-          r={5 / viewport.scale}
-          stroke-width={2 / viewport.scale} />
+          style="r: calc(5px * var(--inv)); stroke-width: calc(2px * var(--inv));" />
       {/if}
 
       <!-- rulers: UI-only measurements, always above the plan -->
       {#each ruler.rulers as r, i (i)}
         <g class="ruler" pointer-events="none">
-          <line x1={r.a.x} y1={r.a.y} x2={r.b.x} y2={r.b.y} stroke="#7c3aed" stroke-width={2 / viewport.scale} />
-          <circle cx={r.a.x} cy={r.a.y} r={3 / viewport.scale} fill="#7c3aed" />
-          <circle cx={r.b.x} cy={r.b.y} r={3 / viewport.scale} fill="#7c3aed" />
+          <line
+            x1={r.a.x}
+            y1={r.a.y}
+            x2={r.b.x}
+            y2={r.b.y}
+            stroke="#7c3aed"
+            style="stroke-width: calc(2px * var(--inv));" />
+          <circle cx={r.a.x} cy={r.a.y} style="r: calc(3px * var(--inv));" fill="#7c3aed" />
+          <circle cx={r.b.x} cy={r.b.y} style="r: calc(3px * var(--inv));" fill="#7c3aed" />
         </g>
       {/each}
 
@@ -583,8 +599,7 @@ const cursorClass = $derived.by(() => {
           x2={ruler.preview.b.x}
           y2={ruler.preview.b.y}
           stroke="#7c3aed"
-          stroke-width={2 / viewport.scale}
-          stroke-dasharray="{10 / viewport.scale} {8 / viewport.scale}"
+          style="stroke-width: calc(2px * var(--inv)); stroke-dasharray: calc(10px * var(--inv)) calc(8px * var(--inv));"
           opacity="0.65" />
       {/if}
 
@@ -596,16 +611,15 @@ const cursorClass = $derived.by(() => {
           y2={drawWall.previewEnd.p.y}
           stroke="#64748b"
           stroke-width={DEFAULT_THICKNESS}
-          stroke-dasharray="{10 / viewport.scale} {8 / viewport.scale}"
+          style="stroke-dasharray: calc(10px * var(--inv)) calc(8px * var(--inv));"
           opacity="0.65" />
         {#if drawWall.previewEnd.attach}
           <circle
             cx={drawWall.previewEnd.p.x}
             cy={drawWall.previewEnd.p.y}
-            r={9 / viewport.scale}
+            style="r: calc(9px * var(--inv)); stroke-width: calc(2px * var(--inv));"
             fill="none"
-            stroke="#16a34a"
-            stroke-width={2 / viewport.scale} />
+            stroke="#16a34a" />
         {/if}
       {/if}
     </g>

@@ -5,38 +5,34 @@ interface Props {
   /** ordered room corners (wall centerline corners), cm */
   pts: Pt[];
   areaCm2: number;
-  scale: number;
   /** stable room key — the m² label carries it as a drag handle (data attr) */
   roomKey: string;
 }
 
-let { pts, areaCm2, scale, roomKey }: Props = $props();
+let { pts, areaCm2, roomKey }: Props = $props();
 
 const points = $derived(pts.map((p) => `${p.x},${p.y}`).join(' '));
 const center = $derived(polygonCentroid(pts));
-/** label hit rect: text is ~9 chars wide; generous padding for a comfy grab */
-const hitW = $derived(76 / scale);
-const hitH = $derived(22 / scale);
+// label hit rect: text is ~9 chars wide; generous padding for a comfy grab.
+// Sizes are screen px via the canvas `--inv` var — static strings, so zooming
+// never re-renders this component. Plain attributes are the fallback for
+// browsers without CSS geometry properties (the style wins where supported).
+const hitStyle = $derived(
+  `x: calc(${center.x}px - 38px * var(--inv)); y: calc(${center.y}px - 11px * var(--inv));
+    width: calc(76px * var(--inv)); height: calc(22px * var(--inv)); rx: calc(4px * var(--inv));`,
+);
 </script>
 
 <g class="room">
   <polygon {points} />
   <!-- the m² label doubles as the room's drag-n-drop handle -->
-  <rect
-    class="label-hit"
-    data-room-key={roomKey}
-    x={center.x - hitW / 2}
-    y={center.y - hitH / 2}
-    width={hitW}
-    height={hitH}
-    rx={4 / scale} />
+  <rect class="label-hit" data-room-key={roomKey} style={hitStyle} />
   <text
     x={center.x}
     y={center.y}
-    font-size={12 / scale}
+    style="font-size: calc(12px * var(--inv)); stroke-width: calc(3px * var(--inv));"
     text-anchor="middle"
-    dominant-baseline="middle"
-    stroke-width={3 / scale}>
+    dominant-baseline="middle">
     {fmtM2(areaCm2)}
     m²
   </text>

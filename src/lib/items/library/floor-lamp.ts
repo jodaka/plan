@@ -21,12 +21,12 @@ const def: ItemDef = {
   // round item: w === d is enforced by resizeMode; rotation is invisible
   resizeMode: 'fixed-aspect',
   collisionShapes: (w) => [ngon(w / 2)],
-  view: (w, d, scale) => {
+  view: (w, d) => {
     const r = Math.min(w, d) / 2;
     return [
       { el: 'circle', cx: 0, cy: 0, r },
       { part: 'detail', el: 'circle', cx: 0, cy: 0, r: r * 0.55 },
-      { part: 'hinge', el: 'circle', cx: 0, cy: 0, r: 1.5 / scale },
+      { part: 'hinge', el: 'circle', cx: 0, cy: 0, r: 1.5 },
     ];
   },
 };

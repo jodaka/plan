@@ -508,8 +508,9 @@ const lang = getLocale() as 'en' | 'ru';
                 <svg
                   viewBox={`${-it.w / 2} ${-it.d / 2} ${it.w} ${it.d}`}
                   width={Math.round((it.w / max) * 52)}
-                  height={Math.round((it.d / max) * 52)}>
-                  <ItemShapes shapes={itemShapes(it.kind, it.w, it.d, previewScale)} scale={previewScale} />
+                  height={Math.round((it.d / max) * 52)}
+                  style={`--inv: ${previewScale}`}>
+                  <ItemShapes shapes={itemShapes(it.kind, it.w, it.d)} />
                 </svg>
                 {it.label[lang]}
               </button>

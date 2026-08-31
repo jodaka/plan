@@ -153,14 +153,23 @@ value is what the wall actually measures clear between its neighbors.
   and drained once per animation frame: trackpads fire several wheel events between
   frames, and applying each immediately costs a full update pass per event; the rAF
   drain applies every queued event in arrival order around its own cursor anchor, so
-  the math is identical while the DOM work stays at one pass per frame.
+  the math is identical while the DOM work stays at one pass per frame. Wheel
+  deltas are normalized to pixels first (`deltaMode` 1/2 = lines/pages, which
+  Firefox reports for physical mice — without this FF zooms ~0.5% per tick).
 - `e.ctrlKey` wheel (trackpad pinch) uses higher sensitivity.
 - Space + drag pans; space is tracked on window keydown/keyup, suppresses tool handling,
   and switches cursor. Middle-button (button 1) also pans.
 - Initial view: first time canvas size is known, `viewport.fit(docBBox(doc))` centers the
   saved plan (or origin when empty).
-- Counter-scaling: screen-constant elements (handle radius, hit-line min width, grid line
-  width, font sizes) are divided by `scale` so they stay constant in pixels.
+- Counter-scaling: screen-constant sizes (handle radius, hit-line min width, grid line
+  width, font sizes) use the `--inv` CSS custom property on the canvas svg root
+  (`--inv = 1/scale`, written once per zoom frame) consumed through static
+  `calc(Npx * var(--inv))` styles — SVG geometry/CSS properties (`stroke-width`, `r`,
+  `rx`, rect `x/y/width/height`, `font-size`, `stroke-dasharray`). Components that
+  would otherwise re-render per zoom frame (items, rooms) take no `scale` prop at all,
+  so a zoom frame mutates only the root `--inv` + `<g>` transform (plus the openings'
+  hit-quad points and any live previews); Firefox profile (2026-08-31) showed the old
+  per-frame attribute churn caused 34–100 ms frame stalls despite cheap rasterization.
 
 ## 7. Snapping & drawing UX
 

@@ -13,7 +13,6 @@ interface Props {
   d: number;
   /** degrees, clockwise on screen */
   rotation: number;
-  scale: number;
   selected?: boolean;
   /** overlaps a sibling item — warning tint */
   overlapping?: boolean;
@@ -31,7 +30,6 @@ let {
   w,
   d,
   rotation,
-  scale,
   selected = false,
   overlapping = false,
   invalid = false,
@@ -42,18 +40,26 @@ const hw = $derived(w / 2);
 const hd = $derived(d / 2);
 const flagged = $derived(overlapping || invalid);
 const tone = $derived(orphan ? 'orphan' : flagged ? 'flagged' : '');
-// generic renderer: shapes come from the item's one library file
-const shapes = $derived(itemShapes(kind, w, d, scale));
+// generic renderer: shapes come from the item's one library file; screen-px
+// hairlines come from the `--inv` CSS var, so zoom never re-renders this
+const shapes = $derived(itemShapes(kind, w, d));
 </script>
 
 <!-- data-item-id on the group so every child resolves via closest() -->
 <g class="item" class:flagged class:orphan data-item-id={id} transform="translate({x} {y}) rotate({rotation})">
-  <ItemShapes {shapes} {scale} {tone} />
+  <ItemShapes {shapes} {tone} />
   {#if selected}
-    <rect class="outline" x={-hw} y={-hd} width={w} height={d} stroke-width={2 / scale} />
+    <rect class="outline" x={-hw} y={-hd} width={w} height={d} style="stroke-width: calc(2px * var(--inv));" />
   {/if}
-  <!-- invisible grab area: the item body plus a small margin -->
-  <rect class="hit" x={-hw - 4 / scale} y={-hd - 4 / scale} width={w + 8 / scale} height={d + 8 / scale} />
+  <!-- invisible grab area: the item body plus a small screen-px margin -->
+  <rect
+    class="hit"
+    x={-hw}
+    y={-hd}
+    width={w}
+    height={d}
+    style="x: calc({-hw}px - 4px * var(--inv)); y: calc({-hd}px - 4px * var(--inv)); width: calc({w}px + 8px *
+      var(--inv)); height: calc({d}px + 8px * var(--inv));" />
 </g>
 
 <style>

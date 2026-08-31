@@ -5,7 +5,7 @@ const def: ItemDef = {
   label: { en: 'Double bed', ru: 'Двуспальная кровать' },
   category: 'bedroom',
   defaults: { w: 160, d: 200, minW: 120, minD: 180 },
-  view: (w, d, scale) => {
+  view: (w, d) => {
     const hw = w / 2;
     const hd = d / 2;
     const pillowH = Math.min(24, d * 0.18);
@@ -20,7 +20,7 @@ const def: ItemDef = {
         y: -hd + inset / 2,
         width: w / 2 - inset * 1.5,
         height: pillowH,
-        rx: 3 / scale,
+        rx: 3,
       },
       {
         part: 'detail',
@@ -29,7 +29,7 @@ const def: ItemDef = {
         y: -hd + inset / 2,
         width: w / 2 - inset * 1.5,
         height: pillowH,
-        rx: 3 / scale,
+        rx: 3,
       },
       { part: 'detail', el: 'line', x1: -hw, y1: blanketY, x2: hw, y2: blanketY },
     ];

@@ -38,13 +38,15 @@ const glassPts = $derived(quad(p1, p2, glassHalf));
 const hitPts = $derived(quad(p1, p2, h + 6 / scale));
 </script>
 
-<!-- data-window-id lives on the group so every child resolves to it via closest() -->
+<!-- data-window-id lives on the group so every child resolves to it via closest().
+     Strokes are screen px via the static `--inv` calc styles (set on the svg
+     root) — zoom only rewrites the hit-quad points. -->
 <g class="win" data-window-id={id}>
   <polygon class="frame" points={framePts} />
   <polygon class="glass" points={glassPts} />
-  <line class="sash" x1={p1.x} y1={p1.y} x2={p2.x} y2={p2.y} stroke-width={1.2 / scale} />
+  <line class="sash" x1={p1.x} y1={p1.y} x2={p2.x} y2={p2.y} style="stroke-width: calc(1.2px * var(--inv));" />
   {#if selected}
-    <polygon class="outline" points={framePts} stroke-width={3 / scale} />
+    <polygon class="outline" points={framePts} style="stroke-width: calc(3px * var(--inv));" />
   {/if}
   <polygon class="hit" points={hitPts} />
 </g>

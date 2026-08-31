@@ -56,26 +56,27 @@ const swing = $derived.by(() => {
 });
 </script>
 
-<!-- data-door-id lives on the group so every child resolves to it via closest() -->
+<!-- data-door-id lives on the group so every child resolves to it via closest().
+     Strokes/radii are screen px via the static `--inv` calc styles (set on the
+     svg root) — zoom only rewrites the hit-quad points. -->
 <g class="door" data-door-id={id}>
   <polygon class="frame" points={framePts} />
   {#if swing}
     <path
       class="arc"
       d="M {swing.tip.x} {swing.tip.y} A {length} {length} 0 0 {swing.sweep} {swing.other.x} {swing.other.y}"
-      stroke-width={1 / scale}
-      stroke-dasharray="{4 / scale} {3 / scale}" />
+      style="stroke-width: calc(1px * var(--inv)); stroke-dasharray: calc(4px * var(--inv)) calc(3px * var(--inv));" />
     <line
       class="leaf"
       x1={swing.hinge.x}
       y1={swing.hinge.y}
       x2={swing.tip.x}
       y2={swing.tip.y}
-      stroke-width={2 / scale} />
-    <circle class="hinge" cx={swing.hinge.x} cy={swing.hinge.y} r={1.6 / scale} />
+      style="stroke-width: calc(2px * var(--inv));" />
+    <circle class="hinge" cx={swing.hinge.x} cy={swing.hinge.y} style="r: calc(1.6px * var(--inv));" />
   {/if}
   {#if selected}
-    <polygon class="outline" points={framePts} stroke-width={3 / scale} />
+    <polygon class="outline" points={framePts} style="stroke-width: calc(3px * var(--inv));" />
   {/if}
   <polygon class="hit" points={hitPts} />
 </g>

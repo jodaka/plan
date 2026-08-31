@@ -73,8 +73,10 @@ export interface ItemDef {
    * Each poly is convex so `polygonsIntersect` SAT holds.
    */
   collisionShapes?: (w: number, d: number) => Pt[][];
-  /** Declarative look, drawn by the generic renderer in `FurnitureView`. */
-  view?: (w: number, d: number, scale: number) => ItemShape[];
+  /** Declarative look, drawn by the generic renderer in `FurnitureView`.
+   * Hairline values (`rx`, `r`) are SCREEN px — the renderer converts them
+   * with the canvas `--inv` CSS var, so shapes never depend on zoom. */
+  view?: (w: number, d: number) => ItemShape[];
   /** How `resizeItem` clamps: bbox = free w/d; fixed-aspect = w===d (round). */
   resizeMode?: ResizeMode;
 }
