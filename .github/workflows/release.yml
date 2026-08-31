@@ -4,8 +4,9 @@ name: Release
 #
 # Two ways to trigger:
 #   1. Actions tab → Release → Run workflow → enter the version (e.g. 0.3.0).
-#      The v0.3.0 tag is created and pushed for you, and the bundle version
-#      in tauri.conf.json is synced for the build.
+#      The v0.3.0 tag is created and pushed for you (re-running an existing
+#      version reuses its tag), and the bundle version in tauri.conf.json
+#      is synced for the build.
 #   2. Push an existing tag: git tag v0.3.0 && git push origin v0.3.0
 on:
   workflow_dispatch:
@@ -54,8 +55,12 @@ jobs:
         run: |
           if [ -n "$VERSION" ]; then
             TAG="v$VERSION"
-            git tag "$TAG"
-            git push origin "$TAG"
+            if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
+              echo "::warning::$TAG already exists on origin — reusing it (e.g. a re-run of a failed release)"
+            else
+              git tag "$TAG"
+              git push origin "$TAG"
+            fi
           else
             TAG="$GITHUB_REF_NAME"
           fi
