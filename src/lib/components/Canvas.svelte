@@ -360,25 +360,28 @@ const cursorClass = $derived.by(() => {
     onpointercancel={onPointerUp}
     oncontextmenu={onContextMenu}>
     <g transform="translate({viewport.tx} {viewport.ty}) scale({viewport.scale})">
+      <!-- Grid as ONE pattern-filled rect: the tile is the cell's square
+           outline, so adjacent tiles complete each other's edge strokes and
+           lines land on exact world multiples of `step` at full width. No
+           per-line DOM nodes — pan/zoom updates 2 elements, never churns
+           hundreds of keyed <line>s (see ai/decisions.md §22). -->
       {#if scene.grid}
-        {#each scene.grid.xs as x (x)}
-          <line
-            x1={x}
-            y1={scene.grid.r.y}
-            x2={x}
-            y2={scene.grid.r.y + scene.grid.r.h}
-            stroke="#e2e8f0"
-            stroke-width={1 / viewport.scale} />
-        {/each}
-        {#each scene.grid.ys as y (y)}
-          <line
-            x1={scene.grid.r.x}
-            y1={y}
-            x2={scene.grid.r.x + scene.grid.r.w}
-            y2={y}
-            stroke="#e2e8f0"
-            stroke-width={1 / viewport.scale} />
-        {/each}
+        <defs>
+          <pattern id="fp-grid" width={scene.grid.step} height={scene.grid.step} patternUnits="userSpaceOnUse">
+            <path
+              d="M 0 0 H {scene.grid.step} V {scene.grid.step} H 0 Z"
+              fill="none"
+              stroke="#e2e8f0"
+              stroke-width={1 / viewport.scale} />
+          </pattern>
+        </defs>
+        <rect
+          x={scene.grid.r.x}
+          y={scene.grid.r.y}
+          width={scene.grid.r.w}
+          height={scene.grid.r.h}
+          fill="url(#fp-grid)"
+          pointer-events="none" />
       {/if}
 
       {#each scene.rooms as room, i (i)}

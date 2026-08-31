@@ -3,6 +3,7 @@ import {
   angleBetweenDeg,
   dist,
   fmtCm,
+  gridStep,
   itemCorners,
   mul,
   polysBBox,
@@ -630,22 +631,16 @@ const visibleRect = $derived.by(() => {
   return { x: tl.x, y: tl.y, w: br.x - tl.x, h: br.y - tl.y };
 });
 
+/**
+ * Visual grid: cell size + the world-space rect to tile. Returns the cell
+ * and rect only — Canvas renders it as ONE pattern-filled <rect> (no per-line
+ * DOM nodes, so pan/zoom never churns hundreds of keyed <line> elements).
+ */
 const grid = $derived.by(() => {
   if (!ui.showGrid) {
     return null;
   }
-  const steps = [1, 5, 10, 50, 100, 500];
-  const step = steps.find((s) => s * viewport.scale >= 8) ?? 1000;
-  const r = visibleRect;
-  const xs: number[] = [];
-  const ys: number[] = [];
-  for (let x = Math.floor(r.x / step) * step; x <= r.x + r.w; x += step) {
-    xs.push(x);
-  }
-  for (let y = Math.floor(r.y / step) * step; y <= r.y + r.h; y += step) {
-    ys.push(y);
-  }
-  return { xs, ys, r };
+  return { step: gridStep(viewport.scale), r: visibleRect };
 });
 
 /**

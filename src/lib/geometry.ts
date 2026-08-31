@@ -6,6 +6,25 @@ export interface Pt {
 /** Grid size in cm */
 export const GRID_SIZE = 1;
 
+/**
+ * Smallest on-screen spacing (px) at which the visual grid still draws a line;
+ * the ladder's coarsest rung is used below it. 12 keeps the density stable
+ * across the ratio-2 rungs (8 px produced a 4x line-count spike at ~6% zoom).
+ */
+export const GRID_MIN_PX = 12;
+
+/** Grid cell sizes (cm) the visual grid may pick from, coarsest last. */
+export const GRID_STEPS = [1, 5, 10, 50, 100, 500, 1000, 5000, 10000];
+
+/**
+ * Visual grid cell (cm) for a given viewport scale (px per cm): the first
+ * ladder rung whose on-screen spacing reaches GRID_MIN_PX. Pure — the scene
+ * derivation consumes it and tests pin the low-zoom behavior.
+ */
+export function gridStep(scale: number): number {
+  return GRID_STEPS.find((s) => s * scale >= GRID_MIN_PX) ?? GRID_STEPS[GRID_STEPS.length - 1];
+}
+
 export function snap(value: number, grid: number = GRID_SIZE): number {
   const snapped = Math.round(value / grid) * grid;
   return snapped === 0 ? 0 : snapped; // avoid -0 leaking into coordinates

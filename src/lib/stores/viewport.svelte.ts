@@ -3,7 +3,9 @@ import type { Pt } from '../geometry';
 /** Pixels per cm at 100% zoom (~physical size on a standard display). */
 export const BASE_PX_PER_CM = 15;
 const MIN_SCALE = BASE_PX_PER_CM * 0.05;
-const MAX_SCALE = BASE_PX_PER_CM * 20;
+/** Zoom is capped at 100%: the 1 cm grid is already 15 px wide there, so
+ * deeper zooms add no drawing value (clamps wheel, pinch, buttons and fit). */
+const MAX_SCALE = BASE_PX_PER_CM;
 
 let scale = $state(BASE_PX_PER_CM);
 let tx = $state(0);

@@ -3,6 +3,8 @@ import {
   angleBetweenDeg,
   axisAlign,
   dist,
+  GRID_MIN_PX,
+  gridStep,
   itemCorners,
   polygonContainsPoint,
   polygonsIntersect,
@@ -104,6 +106,19 @@ describe('geometry', () => {
     expect(axisAlign({ x: 0, y: 0 }, { x: 50, y: 0.5 })).toBe('h');
     expect(axisAlign({ x: 0, y: 0 }, { x: 0.5, y: 50 })).toBe('v');
     expect(axisAlign({ x: 0, y: 0 }, { x: 30, y: 30 })).toBeNull();
+  });
+
+  test('gridStep keeps on-screen spacing above GRID_MIN_PX across the zoom range', () => {
+    for (let pct = 5; pct <= 100; pct += 1) {
+      const scale = (pct / 100) * 15; // BASE_PX_PER_CM; zoom caps at 100%
+      const step = gridStep(scale);
+      expect(step * scale).toBeGreaterThanOrEqual(GRID_MIN_PX);
+    }
+    // the ~6% spike that motivated the pattern grid: 6% must stay on the 50 cm
+    // rung (9 px with the 10 cm rung) instead of jumping to the dense 10 cm one
+    expect(gridStep(0.9)).toBe(50);
+    expect(gridStep(0.75)).toBe(50);
+    expect(gridStep(15)).toBe(1);
   });
 });
 

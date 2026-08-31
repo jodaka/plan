@@ -145,7 +145,8 @@ value is what the wall actually measures clear between its neighbors.
 ## 6. Viewport & navigation
 
 - Screen = world·scale + pan; scale in px/cm, `BASE_PX_PER_CM = 15` (≈ physical size at
-  100%). Zoom clamped to 5%–2000% (`MIN/MAX_SCALE`), anchored at the cursor:
+  100%). Zoom clamped to 5%–100% (`MIN/MAX_SCALE`; capped at 100% — the 1 cm grid is
+  already 15 px wide there, deeper zoom adds nothing), anchored at the cursor:
   `pan' = p − (p − pan)·k`.
 - Wheel listener is attached manually with `{ passive: false }` inside `$effect` —
   Svelte's `onwheel` attribute can't guarantee preventDefault works.
@@ -611,3 +612,28 @@ the user presses Esc or leaves the tool (V/D) — enforced by the Canvas `$effec
 watches `ui.tool` (same pattern that ends the wall chain) plus the Escape handler.
 The toolbar's Select/Draw control became an N-option `Toggle` (options array) to fit
 the third mode.
+
+## 22. Visual grid: one pattern-filled rect, never per-line DOM nodes
+
+**Problem**: the grid used to render one `<line>` per grid line inside keyed `{#each}`
+blocks. Two costs scaled with the viewport: (1) during pan/zoom the world-space keys
+changed every frame, so Svelte tore down and recreated *every* grid line node per frame;
+(2) the step ladder `[1,5,10,50,…]` mixes ratio-5 and ratio-2 rungs, so just above a
+ratio-2 boundary (e.g. ~6% zoom, where `10 cm · 0.9 px/cm = 9 px ≥ 8`) the spacing
+collapsed to ~8 px and the canvas carried 300–400 stroked elements.
+
+**Decision**: `scene.grid` now yields only `{ step, r }` (cell size + visible world rect;
+`gridStep(scale)` in `geometry.ts` picks the first ladder rung with ≥ `GRID_MIN_PX = 12`
+on-screen spacing — the raised threshold also removes the density spike, and the ladder
+extends to 10000). Canvas renders it as a single `<rect>` filled with an SVG `<pattern>`
+(`patternUnits="userSpaceOnUse"`): the pattern's tile is the cell's square outline
+(`M 0 0 H s V s H 0 Z`), so adjacent tiles complete each other's edge strokes and lines
+land on exact world multiples of `step` at full width — no half-width clipping at tile
+edges. Pan/zoom then updates 2 elements' attributes instead of rebuilding hundreds of
+nodes; tiling is the renderer's job. The rect is `pointer-events="none"` (the SVG-level
+pointerdown handler resolves targets via `data-*` attributes anyway).
+
+**Trade-offs**: per-frame cost no longer depends on zoom or viewport size; the DOM is
+constant. The tile-edge trick means each boundary line is drawn twice (by two adjacent
+tiles' half-strokes) — irrelevant at hairline widths. The pattern id (`fp-grid`) is
+page-global, fine for the single-canvas app, and travels with the SVG export clone.

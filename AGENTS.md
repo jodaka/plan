@@ -32,10 +32,13 @@ bun test           # unit tests (bun:test, tests/ directory)
   staged files must pass `biome check --staged` (auto-fixable issues are fixed and re-staged)
   and the whole project must pass `svelte-check`. Code with lint/format/type errors cannot
   be committed — fix it rather than bypassing the hook (`--no-verify` only as a last resort).
+- Ensure you are documenting all the code you write with comments. Update ./ai/decisions.md 
+  as necessary.
+- Try to use as little 3rd party npm modules as possible
 
 ## Current feature set
 
-- Canvas: wheel zoom (5%–2000%, cursor-anchored), space+drag pan, zoom-to-fit
+- Canvas: wheel zoom (5%–100%, cursor-anchored), space+drag pan, zoom-to-fit
 - 1×1 cm invisible grid; snapping ON by default (toggleable); H/V axis snap within 1°
 - Wall drawing: chained clicks, live preview with length label, attach to existing joints
 - Wall editing: click to select; drag joint handles to reshape (auto-join: shared
@@ -112,7 +115,7 @@ bun test           # unit tests (bun:test, tests/ directory)
 - i18n: Paraglide JS (en/ru, `ai/decisions.md` §20) — UI strings in `messages/en.json`
   + `messages/ru.json` (key-aligned, `component__key` naming, `{param}` interpolation),
   used via `m.<key>()` from `$lib/paraglide/messages`; `src/lib/paraglide/` is
-  generated (gitignored); locale switched by the toolbar 🇬🇧/🇷🇺 toggle (cookie +
+  generated (gitignored); locale switched by the toolbar EN/RU toggle (cookie +
   document reload)
 
 ## Architecture
