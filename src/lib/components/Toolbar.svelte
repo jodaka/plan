@@ -10,6 +10,9 @@ import { setLocale, getLocale } from '$lib/paraglide/runtime';
 import type { Tool } from '$lib/stores/ui.svelte';
 import fitIcon from '$lib/assets/icons/fit.svg?raw';
 import snapToGridIcon from '$lib/assets/icons/snap-to-grid.svg?raw';
+import GridIcon from '$lib/assets/icons/grid.svg?raw';
+import UndoIcon from '$lib/assets/icons/undo.svg?raw';
+import RedoIcon from '$lib/assets/icons/redo.svg?raw';
 import Toggle from './Toggle.svelte';
 
 let fileInput: HTMLInputElement | undefined = $state();
@@ -91,8 +94,12 @@ const lang = getLocale() as 'en' | 'ru';
       title={m.toolbar__snapButtonTitle()}>
       {@html snapToGridIcon}
     </button>
-    <button class:active={ui.showGrid} onclick={() => ui.toggleGrid()} title={m.toolbar__gridButtonTitle()}>
-      {m.toolbar__gridButton()}
+    <button
+      class="toolbarIcon"
+      class:active={ui.showGrid}
+      onclick={() => ui.toggleGrid()}
+      title={m.toolbar__gridButtonTitle()}>
+      {@html GridIcon}
     </button>
   </div>
 
@@ -104,16 +111,18 @@ const lang = getLocale() as 'en' | 'ru';
 
   <div class="group" role="group" aria-label="History">
     <button
+      class="toolbarIcon"
       disabled={!plan.canUndo}
       onclick={() => plan.undo()}
       title={plan.undoLabel ? m.toolbar__undoTitle({ label: plan.undoLabel }) : m.toolbar__undoTitleEmpty()}>
-      {m.toolbar__undoButton()}
+      {@html UndoIcon}
     </button>
     <button
+      class="toolbarIcon"
       disabled={!plan.canRedo}
       onclick={() => plan.redo()}
       title={plan.redoLabel ? m.toolbar__redoTitle({ label: plan.redoLabel }) : m.toolbar__redoTitleEmpty()}>
-      {m.toolbar__redoButton()}
+      {@html RedoIcon}
     </button>
   </div>
 
@@ -217,7 +226,6 @@ button:disabled {
 
 .toolbarIcon :global(svg) {
   width: 100%;
-  /*height: 16px;*/
   display: block;
 }
 
@@ -232,9 +240,11 @@ button:disabled {
   align-items: center;
 
   & button {
+    font-weight: bold;
     overflow: hidden;
     width: 36px;
     height: 30px;
+    background-color: var(--bg);
     border: 1px solid var(--border);
   }
 

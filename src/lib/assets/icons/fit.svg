@@ -2,12 +2,14 @@
   xmlns="http://www.w3.org/2000/svg"
   fill="none"
   stroke="currentColor"
-  stroke-linecap="round"
-  stroke-linejoin="round"
   stroke-width="1.8"
   width="100%"
   height="100%"
   viewBox="0 0 24 24">
-  <path d="M4 9V4h5m11 5V4h-5M4 15v5h5m11-5v5h-5" />
-  <rect width="8" height="8" x="8" y="8" rx="1.5" />
+  <g transform="translate(4 4)">
+    <path
+      d="M2 5V3a1 1 0 011-1h2M11 2h2a1 1 0 011 1v2M14 11v2a1 1 0 01-1 1h-2M5 14H3a1 1 0 01-1-1v-2"
+      stroke-linecap="round"
+      stroke-linejoin="round" />
+  </g>
 </svg>
