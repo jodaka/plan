@@ -34,54 +34,41 @@ const id = $props.id();
 
 <style>
 .toggle {
-  border: 1px solid #93c5fd;
   display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 6px;
+  background: var(--surface-alt);
+  border-radius: var(--radius-pill);
+  padding: 2px;
   gap: 1px;
-  height: 28px;
 }
-
 .toggle__input {
   position: absolute;
-  clip: rect(0, 0, 0, 0);
-  height: 1px;
+  clip: rect(0 0 0 0);
   width: 1px;
-  border: 0;
-  overflow: hidden;
+  height: 1px;
 }
-
 .toggle__label {
-  background-color: #fff;
-  color: rgba(0, 0, 0, 0.6);
-  width: fit-content;
-  height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 13px;
-  padding: 0 8px;
-  box-shadow:
-    inset 0 1px 2px rgba(0, 0, 0, 0.1),
-    0 1px rgba(255, 255, 255, 0.1);
-  transition: all 0.1s ease-in-out;
-}
-
-.toggle__label:first-of-type {
-  border-radius: 6px 0 0 6px;
-}
-
-.toggle__label:last-of-type {
-  border-radius: 0 6px 6px 0;
-}
-
-.toggle__label:hover {
+  padding: 8px 12px;
+  border-radius: var(--radius-pill);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--muted);
   cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+  user-select: none;
 }
-
+.toggle__label:hover {
+  color: var(--fg);
+}
 .toggle__input:checked + .toggle__label {
-  background-color: #dbeafe;
-  box-shadow: none;
+  background: var(--surface);
+  color: var(--fg);
+  box-shadow:
+    0 1px 3px oklch(0% 0 0 / 0.06),
+    0 0 0 1px oklch(0% 0 0 / 0.04);
+}
+.toggle__input:focus-visible + .toggle__label {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 </style>

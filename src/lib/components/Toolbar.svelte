@@ -66,8 +66,8 @@ const lang = getLocale() as 'en' | 'ru';
     <Toggle
       value={lang}
       options={[
-        { value: 'en', label: '🇬🇧' },
-        { value: 'ru', label: '🇷🇺' },
+        { value: 'en', label: 'EN' },
+        { value: 'ru', label: 'RU' },
       ]}
       onToggle={(newLang: 'en'|'ru') => setLocale(newLang)} />
   </div>
