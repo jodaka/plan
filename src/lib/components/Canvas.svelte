@@ -411,7 +411,13 @@ const cursorClass = $derived.by(() => {
            outline, so adjacent tiles complete each other's edge strokes and
            lines land on exact world multiples of `step` at full width. No
            per-line DOM nodes — pan/zoom updates 2 elements, never churns
-           hundreds of keyed <line>s (see ai/decisions.md §22). -->
+           hundreds of keyed <line>s (see ai/decisions.md §22). The rect is
+           unmounted while a zoom gesture is in flight: at low zoom the
+           grid's full-viewport repaint blows the renderer's frame budget
+           (measured: 120 Hz → 40 Hz pacing with the main thread idle);
+           `viewport.zooming` re-renders it ~150 ms after the last zoom
+           step. The <defs> pattern stays mounted — an unused pattern costs
+           nothing, so remounting is avoided at gesture end. -->
       {#if scene.grid}
         <defs>
           <pattern id="fp-grid" width={scene.grid.step} height={scene.grid.step} patternUnits="userSpaceOnUse">
@@ -422,13 +428,15 @@ const cursorClass = $derived.by(() => {
               style="stroke-width: calc(1px * var(--inv));" />
           </pattern>
         </defs>
-        <rect
-          x={scene.grid.r.x}
-          y={scene.grid.r.y}
-          width={scene.grid.r.w}
-          height={scene.grid.r.h}
-          fill="url(#fp-grid)"
-          pointer-events="none" />
+        {#if !viewport.zooming}
+          <rect
+            x={scene.grid.r.x}
+            y={scene.grid.r.y}
+            width={scene.grid.r.w}
+            height={scene.grid.r.h}
+            fill="url(#fp-grid)"
+            pointer-events="none" />
+        {/if}
       {/if}
 
       {#each scene.rooms as room, i (i)}

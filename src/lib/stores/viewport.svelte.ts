@@ -13,6 +13,31 @@ let ty = $state(0);
 let viewW = $state(0);
 let viewH = $state(0);
 
+/**
+ * Grid suppression during a zoom gesture: while the wheel (or pinch) is
+ * actively changing the scale, the full-viewport grid layer makes Firefox's
+ * renderer blow the per-frame budget in the low-zoom band (~13–17%) — frame
+ * pacing drops from 120 Hz to ~40 Hz with the main thread idle (measured via
+ * rAF sampling + Gecko profiler, renderer thread pegged; see ai/decisions.md
+ * §22). Hiding the grid rect for the gesture's duration keeps zooming smooth;
+ * it reappears ZOOM_SETTLE_MS after the last scale change. Pan is exempt:
+ * it doesn't rescale the pattern tile, so its raster stays cacheable.
+ */
+const ZOOM_SETTLE_MS = 150;
+let zooming = $state(false);
+let zoomSettleTimer: ReturnType<typeof setTimeout> | null = null;
+
+function markZoomGesture(): void {
+  zooming = true;
+  if (zoomSettleTimer !== null) {
+    clearTimeout(zoomSettleTimer);
+  }
+  zoomSettleTimer = setTimeout(() => {
+    zooming = false;
+    zoomSettleTimer = null;
+  }, ZOOM_SETTLE_MS);
+}
+
 export interface BBox {
   minX: number;
   minY: number;
@@ -43,6 +68,10 @@ export const viewport = {
   get viewH(): number {
     return viewH;
   },
+  /** true while a zoom gesture is in flight (see ZOOM_SETTLE_MS above) */
+  get zooming(): boolean {
+    return zooming;
+  },
 
   setViewSize(w: number, h: number): void {
     viewW = w;
@@ -67,6 +96,7 @@ export const viewport = {
     tx = px - (px - tx) * k;
     ty = py - (py - ty) * k;
     scale = next;
+    markZoomGesture();
   },
 
   zoomCenter(factor: number): void {

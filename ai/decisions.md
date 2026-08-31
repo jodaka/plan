@@ -650,3 +650,22 @@ pointerdown handler resolves targets via `data-*` attributes anyway).
 constant. The tile-edge trick means each boundary line is drawn twice (by two adjacent
 tiles' half-strokes) — irrelevant at hairline widths. The pattern id (`fp-grid`) is
 page-global, fine for the single-canvas app, and travels with the SVG export clone.
+
+**Follow-up (zoom-gesture suppression)**: slow wheel zooming across the ~13–17% band
+stayed perceptibly janky even after this. Measurements against a real plan (rAF frame
+sampling + Firefox Gecko profiler) showed frame pacing collapsing from 120 Hz (8.3 ms)
+to ~40 Hz (25 ms) while the *main thread stayed idle* — the renderer thread
+(`RenderThread::UpdateAndRender`, i.e. WebRender rasterization) was pegged at 75–90% CPU
+for the whole gesture. The trigger is the full-viewport grid layer interacting with the
+renderer at that zoom band: with the grid hidden, zooming in the same band is smooth;
+at ≥ 40% zoom the grid costs nothing; every alternative grid implementation tried
+(single world-space `<path>`, screen-space pattern with integer device-pixel tiles,
+sticky rung ladder with hysteresis) reproduced the stall, and hiding any one of
+rooms/items did not reliably fix it — only hiding the grid did. Since no
+representation of "many short hairlines across the viewport" is cheap for the renderer
+there, the grid `<rect>` is now *unmounted while a zoom gesture is in flight*
+(`viewport.zooming`, true until `ZOOM_SETTLE_MS = 150 ms` after the last scale change;
+pan keeps the grid because it never rescales the pattern tile). The `<defs>` pattern
+stays mounted — an unused pattern rasterizes nothing, so the grid reappears at gesture
+end without a remount hitch. Verified: the 13–17% oscillation drops from
+median ≈ 17–25 ms/frame to 8.3 ms with the fix, identical to the no-grid baseline.

@@ -207,6 +207,14 @@ tests/                     # bun:test unit tests: model (geometry + ops), rooms,
   documented in `ai/decisions.md` §10)
 - Interaction changes verified in the browser (dev server + devtools)
 
+## Firefox devtools MCP (browser debugging/verification)
+
+For browser-based verification and rendering-performance work, follow the playbook in
+`ai/firefox-mcp.md` — it covers loading a plan (localStorage injection works; synthetic
+file-input events do not), simulating wheel zoom correctly (rAF-paced dispatch; sync
+loops over-shoot), the frame-pacing harness, toolbar toggle automation, scene DOM
+bisecting, and how to make sense of saved Gecko profiler JSON.
+
 ## Svelte MCP server
 
 You are able to use the Svelte MCP server, where you have access to comprehensive Svelte 5
