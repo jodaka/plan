@@ -149,7 +149,11 @@ value is what the wall actually measures clear between its neighbors.
   already 15 px wide there, deeper zoom adds nothing), anchored at the cursor:
   `pan' = p − (p − pan)·k`.
 - Wheel listener is attached manually with `{ passive: false }` inside `$effect` —
-  Svelte's `onwheel` attribute can't guarantee preventDefault works.
+  Svelte's `onwheel` attribute can't guarantee preventDefault works. Events are queued
+  and drained once per animation frame: trackpads fire several wheel events between
+  frames, and applying each immediately costs a full update pass per event; the rAF
+  drain applies every queued event in arrival order around its own cursor anchor, so
+  the math is identical while the DOM work stays at one pass per frame.
 - `e.ctrlKey` wheel (trackpad pinch) uses higher sensitivity.
 - Space + drag pans; space is tracked on window keydown/keyup, suppresses tool handling,
   and switches cursor. Middle-button (button 1) also pans.

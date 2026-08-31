@@ -56,6 +56,28 @@ $effect(() => {
   }
 });
 
+// Wheel zoom is queued and applied once per animation frame: trackpads and
+// high-frequency mice fire several wheel events between frames, and each
+// immediate application would trigger a full Svelte flush + SVG style/layout
+// pass. Draining the queue inside one rAF keeps the math identical (each
+// event still zooms around its own cursor position, in arrival order) while
+// capping the DOM work at one update per frame (see ai/decisions.md §6).
+let wheelQueue: { x: number; y: number; factor: number }[] = [];
+let wheelFrame: number | null = null;
+
+function applyQueuedZoom() {
+  wheelFrame = null;
+  if (wheelQueue.length === 0 || !svgEl) {
+    wheelQueue = [];
+    return;
+  }
+  const r = svgEl.getBoundingClientRect();
+  for (const { x, y, factor } of wheelQueue) {
+    viewport.zoomAt(x - r.left, y - r.top, factor);
+  }
+  wheelQueue = [];
+}
+
 // wheel must be a non-passive listener for preventDefault to work
 $effect(() => {
   const el = svgEl;
@@ -64,12 +86,21 @@ $effect(() => {
   }
   const onWheel = (e: WheelEvent) => {
     e.preventDefault();
-    const r = el.getBoundingClientRect();
     const factor = Math.exp(-e.deltaY * (e.ctrlKey ? ZOOM_PINCH_SENSITIVITY : ZOOM_WHEEL_SENSITIVITY));
-    viewport.zoomAt(e.clientX - r.left, e.clientY - r.top, factor);
+    wheelQueue.push({ x: e.clientX, y: e.clientY, factor });
+    if (wheelFrame === null) {
+      wheelFrame = requestAnimationFrame(applyQueuedZoom);
+    }
   };
   el.addEventListener('wheel', onWheel, { passive: false });
-  return () => el.removeEventListener('wheel', onWheel);
+  return () => {
+    el.removeEventListener('wheel', onWheel);
+    if (wheelFrame !== null) {
+      cancelAnimationFrame(wheelFrame);
+      wheelFrame = null;
+    }
+    wheelQueue = [];
+  };
 });
 
 function localPt(e: PointerEvent): { x: number; y: number } {
