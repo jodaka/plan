@@ -1,6 +1,7 @@
 <script lang="ts">
 import { dist, fmtCm, fmtM2, wallAngleDeg } from '$lib/geometry';
 import ItemShapes from '$lib/components/ItemShapes.svelte';
+import { getLocale } from '$lib/paraglide/runtime';
 import { CATALOG, catalogItem, catalogLabel, itemShapes } from '$lib/items/registry';
 import {
   addDoor,
@@ -295,6 +296,8 @@ function handleResizeKey(e: KeyboardEvent) {
   const step = e.shiftKey ? 64 : 16;
   panelWidth = Math.round(Math.min(PANEL_MAX_WIDTH, Math.max(PANEL_MIN_WIDTH, panelWidth + dir * step)));
 }
+
+const lang = getLocale() as 'en' | 'ru';
 </script>
 
 <aside class="panel" style:width="{panelWidth}px" class:resizing={panelResizing}>
@@ -508,6 +511,7 @@ function handleResizeKey(e: KeyboardEvent) {
                   height={Math.round((it.d / max) * 52)}>
                   <ItemShapes shapes={itemShapes(it.kind, it.w, it.d, previewScale)} scale={previewScale} />
                 </svg>
+                {it.label[lang]}
               </button>
             {/each}
           </div>
@@ -633,8 +637,12 @@ h3 {
 }
 .lib-item {
   display: flex;
+  flex-direction: column;
+  gap: 8px;
   align-items: center;
   justify-content: center;
+  text-align: center;
+  color: var(--muted);
   padding: 5px;
   background: transparent;
   border-radius: var(--radius-md);
