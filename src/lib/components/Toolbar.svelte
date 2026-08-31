@@ -132,55 +132,93 @@ const lang = getLocale() as 'en' | 'ru';
 
 <style>
 .toolbar {
+  height: 48px;
   display: flex;
   align-items: center;
-  gap: 16px;
-  padding: 8px 12px;
-  background: #ffffff;
-  flex-wrap: wrap;
+  gap: 4px;
+  padding: 0 12px;
+  background: oklch(100% 0 0 / 0.8);
+  backdrop-filter: blur(12px) saturate(1.4);
+  -webkit-backdrop-filter: blur(12px) saturate(1.4);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.logo {
+  height: 40px;
+  width: auto;
+  margin-right: 4px;
 }
 .group {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 2px;
+}
+.group + .group::before {
+  content: "";
+  width: 1px;
+  height: 20px;
+  background: var(--border);
+  margin: 0 4px;
+  flex-shrink: 0;
 }
 button {
-  border: 1px solid #e2e8f0;
-  background: #ffffff;
-  border-radius: 6px;
-  padding: 5px 10px;
-  font-size: 13px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 32px;
+  height: 32px;
+  padding: 0 10px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
   cursor: pointer;
-  color: #334155;
+  transition: all 0.12s ease;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 button:hover:not(:disabled) {
-  background: #f1f5f9;
+  background: var(--hover);
+  color: var(--fg);
 }
 button.active {
-  background: #dbeafe;
-  border-color: #93c5fd;
-  color: #1d4ed8;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+button.active:hover:not(:disabled) {
+  background: var(--accent-hover);
 }
 button:disabled {
-  opacity: 0.45;
+  opacity: 0.35;
   cursor: default;
 }
 .pct {
-  min-width: 44px;
+  min-width: 40px;
   text-align: center;
-  font-size: 13px;
-  color: #64748b;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--muted);
   font-variant-numeric: tabular-nums;
 }
 .hint {
   margin-left: auto;
-  font-size: 12px;
-  color: #94a3b8;
+  font-size: 11px;
+  color: var(--muted);
+  opacity: 0.6;
+  white-space: nowrap;
 }
 
 .toolbarIcon {
-  height: 28px;
-  padding: 2px;
+  padding: 1px;
+}
+
+.toolbarIcon :global(svg) {
+  width: 100%;
+  /*height: 16px;*/
+  display: block;
 }
 
 .zoomGroup {
@@ -197,10 +235,11 @@ button:disabled {
     overflow: hidden;
     width: 36px;
     height: 30px;
+    border: 1px solid var(--border);
   }
 
   .icon {
-    color: #333333;
+    color: var(--muted);
     padding: 5px;
   }
 }

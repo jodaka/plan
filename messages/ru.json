@@ -17,7 +17,7 @@
 	"toolbar__zoomInTitle": "Увеличить масштаб",
 	"toolbar__fitButton": "Вписать",
 	"toolbar__fitTitle": "Вписать план в область просмотра",
-	"toolbar__downloadButton": "Скачать",
+	"toolbar__downloadButton": "Скачать JSON",
 	"toolbar__downloadTitle": "Скачать план в формате JSON",
 	"toolbar__openButton": "Открыть",
 	"toolbar__openTitle": "Открыть план из файла JSON",

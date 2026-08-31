@@ -124,8 +124,7 @@ function onKeydown(e: KeyboardEvent) {
   height: 100vh;
 }
 header {
-  border-bottom: 1px solid #e2e8f0;
-  background: #ffffff;
+  flex-shrink: 0;
   z-index: 10;
 }
 main {
@@ -138,13 +137,13 @@ main {
   bottom: 18px;
   left: 50%;
   transform: translateX(-50%);
-  background: #b91c1c;
-  color: #ffffff;
-  font-size: 13px;
+  background: var(--danger);
+  color: oklch(98% 0 0);
+  font-size: 12px;
   font-weight: 600;
-  border-radius: 8px;
-  padding: 8px 14px;
-  box-shadow: 0 4px 14px rgb(0 0 0 / 0.25);
+  border-radius: var(--radius-pill);
+  padding: 7px 16px;
+  box-shadow: 0 4px 14px oklch(0% 0 0 / 0.2);
   z-index: 50;
   max-width: 90vw;
 }

@@ -454,49 +454,94 @@ function confirmMessage(roomCount: number, objectCount: number, winCount: number
 
 <style>
 .panel {
-  width: 240px;
+  width: 260px;
   flex-shrink: 0;
-  border-left: 1px solid #e2e8f0;
-  background: #ffffff;
-  padding: 10px 14px 14px;
+  border-left: 1px solid var(--border);
+  background: var(--surface);
   display: flex;
   flex-direction: column;
-  gap: 10px;
   overflow-y: auto;
+  overflow-x: hidden;
+  padding-bottom: 24px;
+}
+.panel::-webkit-scrollbar {
+  width: 4px;
+}
+.panel::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 2px;
 }
 .section {
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  padding: 8px 10px;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  border-radius: 0;
+  padding: 0;
 }
 summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 14px;
   cursor: pointer;
-  font-size: 12px;
-  font-weight: 700;
-  color: #334155;
   user-select: none;
-  margin-bottom: 4px;
+  list-style: none;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  transition: background 0.1s;
+}
+summary::-webkit-details-marker {
+  display: none;
+}
+summary:hover {
+  background: var(--hover);
+}
+summary::after {
+  content: "";
+  width: 7px;
+  height: 7px;
+  flex-shrink: 0;
+  border-right: 1.5px solid var(--muted);
+  border-bottom: 1.5px solid var(--muted);
+  transform: rotate(-90deg);
+  transition: transform 0.2s ease;
+}
+details[open] > summary::after {
+  transform: rotate(45deg);
 }
 .section-body {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  padding-top: 6px;
+  padding: 2px 14px 14px;
 }
 h3 {
   margin: 0;
-  font-size: 14px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--fg);
 }
 .lib-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 6px;
+  gap: 4px;
 }
 .lib-item {
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 5px;
+  background: transparent;
+  border-radius: var(--radius-md);
+}
+.lib-item:hover:not(:disabled) {
+  background: var(--hover);
+}
+.lib-item:active {
+  background: var(--accent-soft);
 }
 .lib-item svg {
   display: block;
@@ -506,47 +551,71 @@ label {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  font-size: 12px;
-  color: #475569;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--muted);
 }
 input {
-  border: 1px solid #cbd5e1;
-  border-radius: 6px;
-  padding: 6px 8px;
+  width: 100%;
+  padding: 6px 0;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  border-radius: 0;
+  background: transparent;
+  font: inherit;
   font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  color: var(--fg);
+  outline: none;
+  transition: border-color 0.15s;
 }
 input:focus {
-  outline: 2px solid #93c5fd;
-  border-color: #2563eb;
+  outline: none;
+  border-bottom-color: var(--accent);
+}
+input::placeholder {
+  color: oklch(70% 0.01 250);
 }
 .meta {
   margin: 0;
-  font-size: 12px;
-  color: #64748b;
+  font-size: 11px;
+  color: var(--muted);
+  line-height: 1.5;
 }
 button {
-  border: 1px solid #e2e8f0;
-  background: #ffffff;
-  border-radius: 6px;
-  padding: 6px 10px;
-  font-size: 13px;
+  display: inline-flex;
+  align-items: center;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: var(--surface-alt);
+  padding: 5px 10px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--fg);
   cursor: pointer;
-  color: #334155;
   text-align: left;
+  transition: background 0.12s ease;
 }
 button:hover:not(:disabled) {
-  background: #f1f5f9;
+  background: var(--hover);
 }
 button:disabled {
-  opacity: 0.45;
+  opacity: 0.4;
   cursor: default;
 }
 .danger {
-  border-color: #fecaca;
-  background: #fef2f2;
-  color: #b91c1c;
+  background: var(--danger-soft);
+  color: var(--danger);
+  align-self: flex-start;
 }
 .danger:hover:not(:disabled) {
-  background: #fee2e2;
+  background: var(--danger-hover);
+}
+.win-row,
+.door-row {
+  background: transparent;
+  font-family: ui-monospace, "SF Mono", monospace;
+  font-variant-numeric: tabular-nums;
 }
 </style>
