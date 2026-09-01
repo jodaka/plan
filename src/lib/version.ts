@@ -1,2 +1,5 @@
-/** App version written into export files; keep in sync with package.json. */
-export const APP_VERSION = '0.2.0';
+/**
+ * App version written into export files. package.json is the single source of
+ * truth (ai/decisions.md §23); rewritten by `bun run release` — do not edit by hand.
+ */
+export const APP_VERSION = '0.3.0';

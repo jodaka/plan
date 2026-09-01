@@ -1,7 +1,7 @@
 {
   "name": "plan",
   "private": true,
-  "version": "0.2.0",
+  "version": "0.3.0",
   "type": "module",
   "scripts": {
     "dev": "vite dev",
@@ -16,7 +16,8 @@
     "deploy": "rsync -avz ./build/ vpn.kudris.com:/home/data/kudris.com/plan/",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
-    "tauri:build": "tauri build"
+    "tauri:build": "tauri build",
+    "release": "bun scripts/release.ts"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.10",

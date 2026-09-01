@@ -217,7 +217,7 @@ value is what the wall actually measures clear between its neighbors.
 
 ## 9. Persistence
 
-- `localStorage` key `floorplanner.doc.v1` (version field inside the doc for future
+- `localStorage` key `plan.doc.v1` (version field inside the doc for future
   migrations). Save is debounced 250 ms from a `$effect` watching `plan.doc` in
   `+page.svelte`, with timer cleanup in the effect teardown.
 - Load is sanitized (`model/storage.ts`): malformed JSON, wrong version, non-finite
@@ -260,7 +260,7 @@ value is what the wall actually measures clear between its neighbors.
 
 **Format** (pretty-printed JSON):
 ```json
-{ "app": "floorplanner", "appVersion": "0.1.0", "exportedAt": "<ISO>", "doc": { …PlanDoc } }
+{ "app": "plan", "appVersion": "0.1.0", "exportedAt": "<ISO>", "doc": { …PlanDoc } }
 ```
 - `APP_VERSION` lives in `src/lib/version.ts`, manually synced with package.json.
   Importing package.json was avoided (keeps bun test and the build simple).
@@ -699,3 +699,42 @@ resolution while zooming and restore at settle (~4× less upload at 2× DPR). A
 ~10 Hz application throttle was tried first (2026-09) and reverted: it cut the
 re-raster frequency as predicted but made the gesture visibly steppy — rejected
 on feel.
+
+## 23. Versioning & releases: package.json is the single source of truth
+
+**Problem**: the app version lived in four places (package.json, src/lib/version.ts,
+src-tauri/tauri.conf.json, src-tauri/Cargo.toml — plus its entry in Cargo.lock) and in
+git tags, with nothing keeping them aligned. The Release workflow patched only
+tauri.conf.json inside CI, so the repo files drifted from the shipped versions
+(v0.3.0 was released while all files still said 0.2.0).
+
+**Decision**: package.json is authoritative; every other copy is derived from it.
+
+- `src-tauri/tauri.conf.json` sets `"version": "../package.json"` — Tauri v2 reads the
+  version from package.json at build time, so the old "sync bundle version" CI step is
+  gone (it was the drift source: it only patched the build checkout, never the repo).
+- `scripts/release.ts` (bun, zero dependencies) is the only writer of the remaining
+  mirrors: it rewrites `src/lib/version.ts`, `src-tauri/Cargo.toml` and the root
+  package's entry in `src-tauri/Cargo.lock` via exact-match regexes (aborting on a
+  miss — silent drift is worse than a failed release), then commits
+  `chore: release vX.Y.Z`, tags `vX.Y.Z` and pushes both. Safety rails: refuses a
+  dirty tree and an existing tag (local or origin), so re-running can never
+  double-release; `--dry-run` prints the plan untouched.
+- Release flow: dispatch the Release workflow with a bump choice (patch/minor/major).
+  The cheap `version` job runs the script on ubuntu and outputs the tag; the
+  4-platform `build` matrix (`needs: version`, tolerant of the skipped job on tag
+  pushes) checks out the tag and tauri-action attaches bundles to a draft release.
+  Pushing a tag directly still works for re-running a failed build (build falls back
+  to `github.ref`). A workflow-level `concurrency: release` group serializes
+  overlapping runs.
+
+**Trade-offs**: the version bump lands on the default branch before the build matrix
+validates it — acceptable because releases are drafts and a failed build is re-run by
+re-pushing the tag. Cargo.lock is edited by regex instead of running `cargo metadata`,
+so the script needs no Rust toolchain (e.g. on the bare CI runner); the
+`name = "plan"` anchor makes the match unambiguous. semantic-release / release-please
+were considered and rejected for now: the former is npm-publish-shaped and requires
+conventional-commit discipline the repo doesn't follow, the latter changes the trigger
+to "merge a release PR"; the custom script is dependency-free and keeps the
+"press button → get draft release with binaries" UX. Revisit if a CHANGELOG or
+commit-derived versions are ever wanted.

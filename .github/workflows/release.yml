@@ -1,28 +1,70 @@
 name: Release
 
-# Builds native desktop bundles and attaches them to a draft GitHub release.
+# One-click releases:
+#   1. Actions tab → Release → Run workflow → pick the bump (patch / minor / major).
+#      The "version" job runs scripts/release.ts: it bumps package.json (+ the
+#      version.ts / Cargo.toml / Cargo.lock mirrors), commits
+#      "chore: release vX.Y.Z", creates the vX.Y.Z tag and pushes both.
+#      Re-running an already-released version is refused (the tag exists) —
+#      bump further instead.
+#   2. The "build" matrix checks out the tag and tauri-action attaches the native
+#      bundles (dmg / msi+nsis / deb+rpm+AppImage) to a draft GitHub release for it.
 #
-# Two ways to trigger:
-#   1. Actions tab → Release → Run workflow → enter the version (e.g. 0.3.0).
-#      The v0.3.0 tag is created and pushed for you (re-running an existing
-#      version reuses its tag), and the bundle version in tauri.conf.json
-#      is synced for the build.
-#   2. Push an existing tag: git tag v0.3.0 && git push origin v0.3.0
+# Re-running a failed build for an existing version: push the tag again
+#   (git push origin vX.Y.Z) — a tag push skips the version job and goes
+#   straight to the build.
 on:
   workflow_dispatch:
     inputs:
-      version:
-        description: 'Version to release, e.g. 0.3.0'
+      bump:
+        description: 'Semver bump to apply'
         required: true
-        type: string
+        type: choice
+        default: patch
+        options:
+          - patch
+          - minor
+          - major
   push:
     tags:
       - 'v*'
 
+permissions:
+  contents: write # version job pushes the release commit + tag; build uploads release assets
+
+# Never run two release flows at once (double click, dispatch + tag push).
+concurrency:
+  group: release
+  cancel-in-progress: false
+
 jobs:
+  version:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.release.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Configure git author
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+
+      - name: Bump version, commit, tag and push
+        id: release
+        env:
+          BUMP: ${{ inputs.bump }}
+        run: bun scripts/release.ts "$BUMP"
+
   build:
-    permissions:
-      contents: write # create the tag, the draft release, and upload artifacts
+    needs: version
+    # After a successful bump (dispatch), or directly on a tag push (the version
+    # job is skipped there).
+    if: ${{ !cancelled() && (needs.version.result == 'success' || needs.version.result == 'skipped') }}
     strategy:
       fail-fast: false
       matrix:
@@ -43,36 +85,11 @@ jobs:
     runs-on: ${{ matrix.platform }}
     steps:
       - uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.version.outputs.tag || github.ref }}
 
       - name: Install bun
         uses: oven-sh/setup-bun@v2
-
-      - name: Determine release tag (create it on manual dispatch)
-        id: rel
-        shell: bash
-        env:
-          VERSION: ${{ inputs.version }}
-        run: |
-          if [ -n "$VERSION" ]; then
-            TAG="v$VERSION"
-            if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
-              echo "::warning::$TAG already exists on origin — reusing it (e.g. a re-run of a failed release)"
-            else
-              git tag "$TAG"
-              git push origin "$TAG"
-            fi
-          else
-            TAG="$GITHUB_REF_NAME"
-          fi
-          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
-
-      - name: Sync bundle version with the released version (manual dispatch)
-        if: github.event_name == 'workflow_dispatch'
-        shell: bash
-        env:
-          VERSION: ${{ inputs.version }}
-        run: |
-          bun -e "const f='src-tauri/tauri.conf.json';const j=await Bun.file(f).json();j.version=process.env.VERSION;await Bun.write(f,JSON.stringify(j,null,2)+'\n')"
 
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
@@ -98,9 +115,9 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           projectPath: .
-          tagName: ${{ steps.rel.outputs.tag }}
-          releaseName: 'Floorplanner ${{ steps.rel.outputs.tag }}'
-          releaseBody: 'Native desktop builds of Floorplanner.'
+          tagName: ${{ needs.version.outputs.tag || github.ref_name }}
+          releaseName: 'Plan ${{ needs.version.outputs.tag || github.ref_name }}'
+          releaseBody: 'Native desktop builds of Plan.'
           releaseDraft: true
           prerelease: false
           args: ${{ matrix.rust-target != '' && format('--target {0}', matrix.rust-target) || '' }}

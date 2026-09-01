@@ -1,4 +1,4 @@
-# Floorplanner
+# PLAN
 
 Lightweight floor-plan editor (alternative to floorplancreator.net): draw walls on a
 canvas, edit them precisely, navigate with pan/zoom. Client-only app — no backend.
@@ -21,6 +21,7 @@ bun run check      # svelte-kit sync, then svelte-check ∥ format (must be 0 er
 bun run lint       # Biome check (lint + format verification, no writes)
 bun run lint:fix   # Biome check --write (autofix lint/format/import sorting)
 bun test           # unit tests (bun:test, tests/ directory)
+bun run release    # release helper: bump version everywhere, commit, tag vX.Y.Z, push (see ai/decisions.md §23)
 ```
 
 ## Code style & enforcement
@@ -103,7 +104,7 @@ bun test           # unit tests (bun:test, tests/ directory)
   (it would destroy the room and orphan its objects; objects are kept, never culled)
 - Undo/redo (Ctrl/Cmd+Z, Ctrl+Shift+Z / Ctrl+Y, toolbar buttons) with labeled entries;
   Delete/Backspace deletes the current selection (wall, window, door or item)
-- Persistence: debounced localStorage (`floorplanner.doc.v1`), sanitized on load
+- Persistence: debounced localStorage (`plan.doc.v1`), sanitized on load
 - Import/export (toolbar): JSON file `floorplan_<timestamp>.json` with metadata
   (`app`, `appVersion`, `exportedAt`, `doc`); import validates version metadata
   (no version → error), is undoable, and offers to export the current plan first
@@ -168,6 +169,8 @@ src/lib/
     Toolbar.svelte         # tools, snap/grid, zoom, undo/redo, import/export
     InspectorPanel.svelte  # selected-entity numeric editing + item library palette
 src/routes/+page.svelte    # layout, global shortcuts, autosave effect
+scripts/release.ts         # release helper: package.json is the version source of truth;
+                           # rewrites version.ts/Cargo.toml/Cargo.lock, commits, tags, pushes
 tests/                     # bun:test unit tests: model (geometry + ops), rooms, io
 ```
 
@@ -197,6 +200,11 @@ tests/                     # bun:test unit tests: model (geometry + ops), rooms,
    Doc/history use `$state.raw` to preserve structural sharing.
 8. Imported files must pass `parseImport` (appVersion metadata + `sanitizeDoc`) and enter
    history via `plan.commit('Import plan', doc)` — never assigned directly.
+9. package.json is the single source of the app version (see `ai/decisions.md` §23);
+   `src/lib/version.ts`, `src-tauri/Cargo.toml` (+ its Cargo.lock entry) are rewritten only
+   by `scripts/release.ts`, and `tauri.conf.json` inherits via `"version": "../package.json"`.
+   Release via the Release workflow (dispatch) or `bun run release` — never hand-edit
+   these version copies.
 
 ## Definition of done for changes
 
