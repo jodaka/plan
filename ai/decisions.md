@@ -156,7 +156,12 @@ value is what the wall actually measures clear between its neighbors.
   the math is identical while the DOM work stays at one pass per frame. Wheel
   deltas are normalized to pixels first (`deltaMode` 1/2 = lines/pages, which
   Firefox reports for physical mice — without this FF zooms ~0.5% per tick).
-- `e.ctrlKey` wheel (trackpad pinch) uses higher sensitivity.
+- `e.ctrlKey` wheel (trackpad pinch in Chrome/Firefox) uses higher sensitivity. Safari
+  never fires wheel for pinch: WebKit emits proprietary `gesturestart`/`gesturechange`/
+  `gestureend` events (DOM-only, not in the TS lib — locally typed as `WebKitGestureEvent`)
+  whose `scale` is ABSOLUTE relative to the gesture start, so the per-event factor is
+  `scale / lastScale` fed into the same rAF queue; `preventDefault` on start/change opts
+  out of Safari's native full-page zoom. Registration is a no-op outside WebKit.
 - Space + drag pans; space is tracked on window keydown/keyup, suppresses tool handling,
   and switches cursor. Middle-button (button 1) also pans.
 - Initial view: first time canvas size is known, `viewport.fit(docBBox(doc))` centers the

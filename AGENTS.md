@@ -207,13 +207,22 @@ tests/                     # bun:test unit tests: model (geometry + ops), rooms,
   documented in `ai/decisions.md` §10)
 - Interaction changes verified in the browser (dev server + devtools)
 
-## Firefox devtools MCP (browser debugging/verification)
+## Browser devtools MCPs (Chrome / Firefox / Safari)
 
-For browser-based verification and rendering-performance work, follow the playbook in
-`ai/firefox-mcp.md` — it covers loading a plan (localStorage injection works; synthetic
-file-input events do not), simulating wheel zoom correctly (rAF-paced dispatch; sync
-loops over-shoot), the frame-pacing harness, toolbar toggle automation, scene DOM
-bisecting, and how to make sense of saved Gecko profiler JSON.
+Three browser MCP servers are available for verification and debugging; pick the
+one matching the browser under test (or cross-check all three):
+
+- **chrome-devtools** — Chromium: pages, a11y snapshots, performance traces,
+  Lighthouse audits.
+- **firefox-devtools** — Firefox: follow the playbook in `ai/firefox-mcp.md` —
+  it covers loading a plan (localStorage injection works; synthetic file-input
+  events do not), simulating wheel zoom correctly (rAF-paced dispatch; sync
+  loops over-shoot), the frame-pacing harness, toolbar toggle automation,
+  scene DOM bisecting, and how to make sense of saved Gecko profiler JSON.
+- **safari-mcp** — Safari Technology Preview via Follow `ai/safari-mcp.md` for setup (enable
+  remote automation in STP settings), tool differences (handle-based tabs,
+  no UID layer — use `page_interactions` / `evaluate_javascript`), and the
+  synthetic GestureEvent recipe for testing trackpad pinch.
 
 ## Svelte MCP server
 

@@ -27,6 +27,14 @@ import { DEFAULT_THICKNESS } from '$lib/types';
 const ZOOM_WHEEL_SENSITIVITY = 0.0015;
 const ZOOM_PINCH_SENSITIVITY = 0.01;
 
+// WebKit GestureEvent (Safari-only, absent from the DOM lib): trackpad pinch
+// reports an absolute `scale` since gesture start plus MouseEvent coordinates.
+interface WebKitGestureEvent extends UIEvent {
+  scale: number;
+  clientX: number;
+  clientY: number;
+}
+
 let svgEl: SVGSVGElement | undefined = $state();
 let wrapW = $state(0);
 let wrapH = $state(0);
@@ -99,17 +107,49 @@ $effect(() => {
   if (!el) {
     return;
   }
-  const onWheel = (e: WheelEvent) => {
-    e.preventDefault();
-    const factor = Math.exp(-wheelDeltaPx(e) * (e.ctrlKey ? ZOOM_PINCH_SENSITIVITY : ZOOM_WHEEL_SENSITIVITY));
-    wheelQueue.push({ x: e.clientX, y: e.clientY, factor });
+  const queueZoom = (x: number, y: number, factor: number) => {
+    wheelQueue.push({ x, y, factor });
     if (wheelFrame === null) {
       wheelFrame = requestAnimationFrame(applyQueuedZoom);
     }
   };
+  const onWheel = (e: WheelEvent) => {
+    e.preventDefault();
+    const factor = Math.exp(-wheelDeltaPx(e) * (e.ctrlKey ? ZOOM_PINCH_SENSITIVITY : ZOOM_WHEEL_SENSITIVITY));
+    queueZoom(e.clientX, e.clientY, factor);
+  };
+  // Safari (WebKit) reports trackpad pinch as proprietary GestureEvents with an
+  // ABSOLUTE `scale` (ratio vs. gesture start), never as ctrl+wheel like
+  // Chrome/Firefox — without these listeners pinch does nothing in Safari and
+  // the native page-zoom kicks in instead. The event types only exist in
+  // WebKit, so registration is a harmless no-op in every other browser.
+  // preventDefault opts the gesture out of Safari's default page zoom.
+  let gestureScale = 1;
+  const onGestureStart = (e: Event) => {
+    e.preventDefault();
+    gestureScale = (e as WebKitGestureEvent).scale;
+  };
+  const onGestureChange = (e: Event) => {
+    e.preventDefault();
+    const ge = e as WebKitGestureEvent;
+    const factor = ge.scale / gestureScale;
+    gestureScale = ge.scale;
+    if (factor !== 1) {
+      queueZoom(ge.clientX, ge.clientY, factor);
+    }
+  };
+  const onGestureEnd = (e: Event) => {
+    gestureScale = (e as WebKitGestureEvent).scale;
+  };
   el.addEventListener('wheel', onWheel, { passive: false });
+  el.addEventListener('gesturestart', onGestureStart, { passive: false });
+  el.addEventListener('gesturechange', onGestureChange, { passive: false });
+  el.addEventListener('gestureend', onGestureEnd, { passive: false });
   return () => {
     el.removeEventListener('wheel', onWheel);
+    el.removeEventListener('gesturestart', onGestureStart);
+    el.removeEventListener('gesturechange', onGestureChange);
+    el.removeEventListener('gestureend', onGestureEnd);
     if (wheelFrame !== null) {
       cancelAnimationFrame(wheelFrame);
       wheelFrame = null;
