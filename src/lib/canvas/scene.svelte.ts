@@ -459,10 +459,14 @@ const highlightIds = $derived.by<WallId[]>(() => {
   return ui.selectedWallId && !ui.selectedWindowId && !ui.selectedDoorId ? [ui.selectedWallId] : [];
 });
 
-// handles live in a top-level layer so wall hit-lines can never cover them
-const handleJoints = $derived.by<Joint[]>(() => {
+// handles live in a top-level layer so wall hit-lines can never cover them;
+// the primary vertex (amber) is the one inspector length edits will move —
+// it is set by clicking the wall body (closest end) or the handle itself
+const handleJoints = $derived.by<(Joint & { primary: boolean })[]>(() => {
   const seen = new Set<JointId>();
-  const out: Joint[] = [];
+  const out: (Joint & { primary: boolean })[] = [];
+  const sel = ui.selectedWallId ? plan.doc.walls[ui.selectedWallId] : null;
+  const primaryJoint = sel ? (ui.primaryEnd === 'start' ? sel.startJointId : sel.endJointId) : null;
   for (const id of highlightIds) {
     const w = plan.doc.walls[id];
     if (!w) {
@@ -475,7 +479,7 @@ const handleJoints = $derived.by<Joint[]>(() => {
       seen.add(jid);
       const j = renderJoints[jid];
       if (j) {
-        out.push(j);
+        out.push({ ...j, primary: jid === primaryJoint });
       }
     }
   }
@@ -691,7 +695,7 @@ export const scene = {
   get highlights(): Highlight[] {
     return highlights;
   },
-  get handleJoints(): Joint[] {
+  get handleJoints(): (Joint & { primary: boolean })[] {
     return handleJoints;
   },
   get selArcs(): ArcInfo[] {

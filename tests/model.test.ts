@@ -9,6 +9,7 @@ import {
   polygonContainsPoint,
   polygonsIntersect,
   snap,
+  snapDir45,
   snapItemCenter,
   snapPt,
   type SnapBox,
@@ -108,6 +109,29 @@ describe('geometry', () => {
     expect(axisAlign({ x: 0, y: 0 }, { x: 30, y: 30 })).toBeNull();
   });
 
+  test('snapDir45 locks the direction to the nearest 45° ray', () => {
+    const o = { x: 10, y: 20 };
+    // exactly-axis cursor locks with no float dust (length = cursor distance)
+    expect(snapDir45(o, { x: 104.6, y: 20 })).toEqual({ x: 104.6, y: 20 });
+    expect(snapDir45(o, { x: 10, y: -30.4 })).toEqual({ x: 10, y: -30.4 });
+    // near-axis cursor snaps to the axis, preserving its distance
+    expect(snapDir45(o, { x: 104.6, y: 21 }).y).toBe(20);
+    // 30° cursor (len 100) snaps to 45°, keeping the length
+    const diag = snapDir45({ x: 0, y: 0 }, { x: 100 * Math.cos(Math.PI / 6), y: 100 * Math.sin(Math.PI / 6) });
+    expect(diag.x).toBeCloseTo(100 / Math.SQRT2);
+    expect(diag.y).toBeCloseTo(100 / Math.SQRT2);
+    // wraparound: a cursor just below the −x axis still locks horizontal
+    const left = snapDir45(o, { x: -50, y: -1 });
+    expect(left.y).toBe(o.y);
+    expect(left.x).toBeLessThan(o.x);
+    // explicit length override (Shift + snap rounds the wall length)
+    const locked = snapDir45(o, { x: 120, y: 70 }, 50);
+    expect(locked.x).toBeCloseTo(10 + 50 / Math.SQRT2);
+    expect(locked.y).toBeCloseTo(20 + 50 / Math.SQRT2);
+    // degenerate: cursor on the anchor
+    expect(snapDir45(o, o)).toEqual(o);
+  });
+
   test('gridStep keeps on-screen spacing above GRID_MIN_PX across the zoom range', () => {
     for (let pct = 5; pct <= 100; pct += 1) {
       const scale = (pct / 100) * 15; // BASE_PX_PER_CM; zoom caps at 100%
@@ -189,6 +213,31 @@ describe('ops', () => {
     expect(re.y).toBe(80);
   });
 
+  test('setLength with move=start mirrors: start joint travels, end stays put', () => {
+    let d = addWall(emptyDoc(), { x: 0, y: 0 }, { x: 40, y: 0 }).doc;
+    const id = Object.keys(d.walls)[0];
+    const s = d.joints[d.walls[id].startJointId];
+    const e = d.joints[d.walls[id].endJointId];
+
+    const grown = setLength(d, id, 200, 'start');
+    const ra = grown.joints[s.id];
+    // start extended AWAY from the fixed end along the same axis
+    expect([ra.x, ra.y]).toEqual([-160, 0]);
+    expect(grown.joints[e.id]).toEqual(e);
+
+    // shrinking pulls the start joint toward the fixed end
+    const shrunk = setLength(d, id, 10, 'start');
+    expect([shrunk.joints[s.id].x, shrunk.joints[s.id].y]).toEqual([30, 0]);
+    expect(shrunk.joints[e.id]).toEqual(e);
+
+    // diagonal: direction preserved, measured from the fixed end
+    d = addWall(emptyDoc(), { x: 0, y: 0 }, { x: 30, y: 40 }).doc;
+    const id2 = Object.keys(d.walls)[0];
+    const s2 = d.joints[d.walls[id2].startJointId];
+    const r2 = setLength(d, id2, 100, 'start');
+    expect([r2.joints[s2.id].x, r2.joints[s2.id].y]).toEqual([-30, -40]);
+  });
+
   test('setThickness compensates: connected inner lengths preserved', () => {
     const doc = boxDoc();
     const topId = Object.keys(doc.walls)[0];
@@ -230,6 +279,26 @@ describe('ops', () => {
     expect(dist(grown.joints[left.startJointId], grown.joints[left.endJointId])).toBe(310);
     // inner span now measures 300
     expect(310 - 5 - 5).toBe(300);
+  });
+
+  test('setInnerLength moves the primary (start) vertex when asked', () => {
+    const doc = boxDoc();
+    const leftId = Object.keys(doc.walls)[3];
+    const left = doc.walls[leftId];
+    const endBefore = doc.joints[left.endJointId];
+    const startBefore = doc.joints[left.startJointId];
+
+    const grown = setInnerLength(doc, leftId, 300, 'start');
+    // fixed end untouched; the start joint carries the whole 100 cm growth
+    expect(grown.joints[left.endJointId]).toEqual(endBefore);
+    const grownStart = grown.joints[left.startJointId];
+    expect(dist(startBefore, grownStart)).toBeCloseTo(100);
+    // still collinear with the fixed end (moved along the original axis only)
+    const cross =
+      (grownStart.x - endBefore.x) * (startBefore.y - endBefore.y) -
+      (grownStart.y - endBefore.y) * (startBefore.x - endBefore.x);
+    expect(Math.abs(cross)).toBeCloseTo(0);
+    expect(dist(grownStart, endBefore)).toBeCloseTo(310);
   });
 
   test('setThickness preserves non-perpendicular neighbor angles and inner lengths', () => {

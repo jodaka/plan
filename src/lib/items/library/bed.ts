@@ -8,19 +8,20 @@ const def: ItemDef = {
   view: (w, d) => {
     const hw = w / 2;
     const hd = d / 2;
-    const pillowH = Math.min(24, d * 0.18);
-    const inset = Math.min(10, w * 0.12, d * 0.12);
-    const blanketY = -hd + inset / 2 + pillowH + inset;
+    const pad = Math.min(10, w * 0.15);
+    const gap = Math.min(8, d * 0.04);
+    const pillowH = Math.min(22, d * 0.13);
+    const blanketY = -hd + gap + pillowH + Math.min(12, d * 0.06);
     return [
-      { el: 'rect', x: -hw, y: -hd, width: w, height: d },
+      { el: 'rect', x: -hw, y: -hd, width: w, height: d, rx: 6 },
       {
         part: 'detail',
         el: 'rect',
-        x: -hw + inset,
-        y: -hd + inset / 2,
-        width: w - inset * 2,
+        x: -hw + pad,
+        y: -hd + gap,
+        width: w - pad * 2,
         height: pillowH,
-        rx: 3,
+        rx: 4,
       },
       { part: 'detail', el: 'line', x1: -hw, y1: blanketY, x2: hw, y2: blanketY },
     ];

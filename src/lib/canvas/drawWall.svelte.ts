@@ -1,4 +1,4 @@
-import { axisAlign, dist, fmtCm, snapPt, type Pt } from '../geometry';
+import { axisAlign, dist, fmtCm, snapDir45, snapPt, type Pt } from '../geometry';
 import { addWall, findJointNear, MIN_WALL_LENGTH } from '../model/ops';
 import { m } from '../paraglide/messages';
 import { plan } from '../stores/plan.svelte';
@@ -10,6 +10,17 @@ const ATTACH_PX = 12;
 
 function resolveDrawPoint(raw: Pt): { p: Pt; attach: JointId | null } {
   const doc = plan.doc;
+  // Shift overrides every other snapping (incl. joint attach, which could
+  // break the lock): while held, the wall direction from the chain anchor is
+  // locked to H/V/45° — see ai/decisions.md §24. Before the first click
+  // (no anchor) there is no direction to constrain, so Shift is ignored.
+  if (anchor && shiftHeld) {
+    const rawLen = dist(anchor, raw);
+    // snap on → integer wall length along the locked ray (exact H/V coords;
+    // 45° walls keep an irrational direction, so length is what gets snapped)
+    const len = ui.snapEnabled ? Math.round(rawLen) : rawLen;
+    return { p: snapDir45(anchor, raw, len), attach: null };
+  }
   if (!ui.snapEnabled) {
     return { p: raw, attach: null };
   }
@@ -30,10 +41,11 @@ function resolveDrawPoint(raw: Pt): { p: Pt; attach: JointId | null } {
 }
 
 // wall-chain drawing state: anchor is the current chain corner, cursorWorld
-// feeds the live preview
+// feeds the live preview, shiftHeld gates the H/V/45° direction lock
 let drawActive = $state(false);
 let anchor = $state<Pt | null>(null);
 let cursorWorld = $state<Pt>({ x: 0, y: 0 });
+let shiftHeld = $state(false);
 
 const previewEnd = $derived.by(() => {
   if (!drawActive || !anchor) {
@@ -65,14 +77,16 @@ export const drawWall = {
   get previewLabel() {
     return previewLabel;
   },
-  /** tracks the cursor so the live preview follows it */
-  move(world: Pt): void {
+  /** tracks the cursor (and Shift) so the live preview follows it */
+  move(world: Pt, shift = false): void {
     if (drawActive) {
       cursorWorld = world;
+      shiftHeld = shift;
     }
   },
   /** a click in draw-tool mode: starts the chain or appends a wall */
-  pointerDown(world: Pt): void {
+  pointerDown(world: Pt, shift = false): void {
+    shiftHeld = shift;
     const res = resolveDrawPoint(world);
     if (!drawActive || !anchor) {
       drawActive = true;
@@ -92,5 +106,6 @@ export const drawWall = {
   end(): void {
     drawActive = false;
     anchor = null;
+    shiftHeld = false;
   },
 };

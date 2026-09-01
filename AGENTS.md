@@ -41,14 +41,22 @@ bun run release    # release helper: bump version everywhere, commit, tag vX.Y.Z
 
 ## Current feature set
 
-- Canvas: wheel zoom (5%–100%, cursor-anchored), space+drag pan, zoom-to-fit
+- Canvas: wheel zoom (5%–100%, cursor-anchored), space+drag pan, zoom-to-fit;
+  opens at 15% zoom in wall-drawing mode (startup only centers the doc — no
+  auto-fit; see ai/decisions.md §24)
 - 1×1 cm invisible grid; snapping ON by default (toggleable); H/V axis snap within 1°
-- Wall drawing: chained clicks, live preview with length label, attach to existing joints
+- Wall drawing: chained clicks, live preview with length label, attach to existing joints;
+  holding Shift direction-locks the preview to H/V/45° from the chain anchor (strict —
+  overrides joint attach; snap-on rounds the wall length along the locked ray)
 - Wall editing: click to select; drag joint handles to reshape (auto-join: shared
   corners move all attached walls). Walls are NOT translatable as wholes — joint edits
   are the only geometry change; while dragging, every connected wall highlights with
-  outer/inner dims + angle arcs at all affected joints
-- Inspector: inner length (editable via `setInnerLength`), thickness (editable —
+  outer/inner dims + angle arcs at all affected joints. One endpoint is PRIMARY
+  (amber ring): clicking a handle picks it, clicking the wall body picks the end
+  closest to the click; inspector length edits move the primary vertex and keep the
+  opposite end fixed (`setLength`/`setInnerLength` `move` param — see ai/decisions.md §25)
+- Inspector: inner length (editable via `setInnerLength`, moves the wall's primary
+  vertex), thickness (editable —
   `setThickness` shifts each joint along attached walls' axes by Δt/2 to preserve their
   angles and inner spans), outer span, orientation, delete
 - Selected-wall overlay: outer/inner dimension lines + angle arcs at connected joints

@@ -7,10 +7,13 @@ export interface LibraryDrag {
   label: string;
 }
 
-let tool = $state<Tool>('select');
+let tool = $state<Tool>('draw');
 let snapEnabled = $state(true);
 let showGrid = $state(false);
 let selectedWallId = $state<WallId | null>(null);
+/** Which end of the selected wall is "primary" (drawn amber; inspector
+ * length edits move THIS vertex, the opposite end stays fixed) — §25. */
+let primaryEnd = $state<'start' | 'end'>('end');
 let selectedWindowId = $state<WindowId | null>(null);
 let selectedDoorId = $state<DoorId | null>(null);
 let selectedItemId = $state<string | null>(null);
@@ -69,10 +72,24 @@ export const ui = {
   get selectedWallId(): WallId | null {
     return selectedWallId;
   },
-  /** Selecting a wall always drops an opening/item/room selection (and vice versa below). */
-  select(wallId: WallId | null): void {
+  get primaryEnd(): 'start' | 'end' {
+    return primaryEnd;
+  },
+  /**
+   * Selecting a wall always drops an opening/item/room selection (and vice
+   * versa below). `primary` sets the primary vertex explicitly (joint-handle
+   * click = that end; wall-body click = closest end); without it the primary
+   * survives re-selecting the SAME wall and resets to 'end' (the historical
+   * grow-from-end behavior) only when the selection actually changes.
+   */
+  select(wallId: WallId | null, primary?: 'start' | 'end'): void {
+    primaryEnd = primary ?? (wallId === selectedWallId ? primaryEnd : 'end');
     selectedWallId = wallId;
     clearSelection('wall');
+  },
+  /** Clicking one of the selected wall's endpoint handles makes it primary. */
+  setWallPrimary(end: 'start' | 'end'): void {
+    primaryEnd = end;
   },
 
   get selectedWindowId(): WindowId | null {

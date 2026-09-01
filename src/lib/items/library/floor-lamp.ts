@@ -26,7 +26,7 @@ const def: ItemDef = {
     return [
       { el: 'circle', cx: 0, cy: 0, r },
       { part: 'detail', el: 'circle', cx: 0, cy: 0, r: r * 0.55 },
-      { part: 'hinge', el: 'circle', cx: 0, cy: 0, r: 1.5 },
+      { part: 'hinge', el: 'circle', cx: 0, cy: 0, r: 2 },
     ];
   },
 };

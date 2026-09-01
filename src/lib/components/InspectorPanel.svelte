@@ -105,7 +105,9 @@ function applyLength(value: number) {
   if (!wall || !Number.isFinite(value)) {
     return;
   }
-  const candidate = setInnerLength(plan.doc, wall.id, value);
+  // the wall's primary vertex (amber handle) is the one that moves; the
+  // opposite end stays fixed — see ai/decisions.md §25
+  const candidate = setInnerLength(plan.doc, wall.id, value, ui.primaryEnd);
   if (violatedOpeningFloors(candidate).length > 0) {
     ui.showError(m.inspector__wallLengthError({ min: fmtCm(dims?.minInner ?? MIN_WALL_LENGTH) }));
     return;
@@ -496,7 +498,7 @@ const lang = getLocale() as 'en' | 'ru';
           <div class="lib-grid">
             {#each cat.items as it (it.kind)}
               {@const max = Math.max(it.w, it.d)}
-              {@const previewScale = 52 / max}
+              {@const inv = max / 52}
               <button
                 class="lib-item"
                 aria-label={catalogLabel(it.kind)}
@@ -506,10 +508,10 @@ const lang = getLocale() as 'en' | 'ru';
               }}
                 title={m.inspector__libraryDragTitle()}>
                 <svg
-                  viewBox={`${-it.w / 2} ${-it.d / 2} ${it.w} ${it.d}`}
+                  viewBox={`${-it.w / 2 - inv} ${-it.d / 2 - inv} ${it.w + inv * 2} ${it.d + inv * 2}`}
                   width={Math.round((it.w / max) * 52)}
                   height={Math.round((it.d / max) * 52)}
-                  style={`--inv: ${previewScale}`}>
+                  style={`--inv: ${inv}`}>
                   <ItemShapes shapes={itemShapes(it.kind, it.w, it.d)} />
                 </svg>
                 {it.label[lang]}

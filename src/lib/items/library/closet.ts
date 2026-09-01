@@ -5,29 +5,30 @@ const def: ItemDef = {
   label: { en: 'Closet', ru: 'Шкаф' },
   category: 'living-room',
   defaults: { w: 120, d: 60, minW: 50, minD: 40 },
-  /** top view: body + a pair of door leaves along one side, handles at the seam */
+  /** top view: body + door-face line at the front, seam tick, handle dots */
   view: (w, d) => {
     const hw = w / 2;
     const hd = d / 2;
-    const leaf = Math.min(3, w * 0.1, d * 0.1);
-    const r = 1.5;
+    const face = Math.min(5, w * 0.08, d * 0.08);
+    const hx = Math.min(6, Math.min(w, d) * 0.12);
+    const r = 2;
     if (w >= d) {
-      const hx = Math.min(4, w * 0.15);
+      const y = hd - face;
       return [
-        { el: 'rect', x: -hw, y: -hd, width: w, height: d },
-        { part: 'detail', el: 'rect', x: -hw, y: hd - leaf, width: w / 2, height: leaf },
-        { part: 'detail', el: 'rect', x: 0, y: hd - leaf, width: w / 2, height: leaf },
-        { part: 'hinge', el: 'circle', cx: -hx, cy: hd - leaf / 2, r },
-        { part: 'hinge', el: 'circle', cx: hx, cy: hd - leaf / 2, r },
+        { el: 'rect', x: -hw, y: -hd, width: w, height: d, rx: 2 },
+        { part: 'detail', el: 'line', x1: -hw, y1: y, x2: hw, y2: y },
+        { part: 'detail', el: 'line', x1: 0, y1: y, x2: 0, y2: y - face },
+        { part: 'hinge', el: 'circle', cx: -hx, cy: y - face / 2, r },
+        { part: 'hinge', el: 'circle', cx: hx, cy: y - face / 2, r },
       ];
     }
-    const hy = Math.min(4, d * 0.15);
+    const x = hw - face;
     return [
-      { el: 'rect', x: -hw, y: -hd, width: w, height: d },
-      { part: 'detail', el: 'rect', x: hw - leaf, y: -hd, width: leaf, height: d / 2 },
-      { part: 'detail', el: 'rect', x: hw - leaf, y: 0, width: leaf, height: d / 2 },
-      { part: 'hinge', el: 'circle', cx: hw - leaf / 2, cy: -hy, r },
-      { part: 'hinge', el: 'circle', cx: hw - leaf / 2, cy: hy, r },
+      { el: 'rect', x: -hw, y: -hd, width: w, height: d, rx: 2 },
+      { part: 'detail', el: 'line', x1: x, y1: -hd, x2: x, y2: hd },
+      { part: 'detail', el: 'line', x1: x, y1: 0, x2: x - face, y2: 0 },
+      { part: 'hinge', el: 'circle', cx: x - face / 2, cy: -hx, r },
+      { part: 'hinge', el: 'circle', cx: x - face / 2, cy: hx, r },
     ];
   },
 };

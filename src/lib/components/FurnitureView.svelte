@@ -65,7 +65,7 @@ const shapes = $derived(itemShapes(kind, w, d));
 <style>
 .outline {
   fill: none;
-  stroke: #2563eb;
+  stroke: var(--accent);
   pointer-events: none;
 }
 .hit {

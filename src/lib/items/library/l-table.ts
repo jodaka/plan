@@ -30,7 +30,7 @@ const def: ItemDef = {
     const hw = w / 2;
     const hd = d / 2;
     const t = Math.min(w, d) * 0.4;
-    const i = Math.min(10, w * 0.12, d * 0.12);
+    const i = Math.min(6, w * 0.1, d * 0.1);
     return [
       {
         el: 'path',

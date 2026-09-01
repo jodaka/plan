@@ -168,6 +168,36 @@ export function axisAlign(a: Pt, b: Pt, tolDeg: number = HORIZ_VERT_TOL_DEG): 'h
   return null;
 }
 
+/** Exact unit vectors for the 8 ray directions (every 45°), indexed by octant. */
+const DIR45: Pt[] = [
+  { x: 1, y: 0 },
+  { x: Math.SQRT1_2, y: Math.SQRT1_2 },
+  { x: 0, y: 1 },
+  { x: -Math.SQRT1_2, y: Math.SQRT1_2 },
+  { x: -1, y: 0 },
+  { x: -Math.SQRT1_2, y: -Math.SQRT1_2 },
+  { x: 0, y: -1 },
+  { x: Math.SQRT1_2, y: -Math.SQRT1_2 },
+];
+
+/**
+ * Direction-locks the point `p` onto the nearest of the 8 rays radiating from
+ * `a` (0°, 45°, 90°, …) — Shift-constrained wall drawing (H/V/45° only).
+ * The distance a→p is preserved (override with `len`); H/V results are exact
+ * (axis coordinates never pick up float dust, unlike cos(π/2) rounding).
+ */
+export function snapDir45(a: Pt, p: Pt, len?: number): Pt {
+  const dx = p.x - a.x;
+  const dy = p.y - a.y;
+  if (dx === 0 && dy === 0) {
+    return { ...p };
+  }
+  const oct = ((Math.round(Math.atan2(dy, dx) / (Math.PI / 4)) % 8) + 8) % 8;
+  const u = DIR45[oct];
+  const l = len ?? Math.hypot(dx, dy);
+  return { x: a.x + u.x * l, y: a.y + u.y * l };
+}
+
 export function fmtCm(cm: number): string {
   const r = Math.round(cm * 10) / 10;
   return Number.isInteger(r) ? String(r) : r.toFixed(1);

@@ -11,7 +11,8 @@ const def: ItemDef = {
     const hw = w / 2;
     const hd = d / 2;
     const cr = Math.min(hw, hd);
-    const inset = Math.min(10, w * 0.12, d * 0.12);
+    const i = Math.min(6, w * 0.1, d * 0.1);
+    const cir = Math.max(cr - i, 0.1);
     return [
       {
         el: 'path',
@@ -20,7 +21,7 @@ const def: ItemDef = {
       {
         part: 'detail',
         el: 'path',
-        d: `M ${-hw + inset} ${-hd + inset} L ${hw - cr * 0.6} ${-hd + inset} Q ${hw - inset} ${-hd + inset} ${hw - inset} ${-hd + cr * 0.6} L ${hw - inset} ${hd - inset} L ${-hw + inset} ${hd - inset} Z`,
+        d: `M ${-hw + i} ${-hd + i} L ${hw - cr} ${-hd + i} Q ${hw - i} ${-hd + i} ${hw - i} ${-hd + cir} L ${hw - i} ${hd - i} L ${-hw + i} ${hd - i} Z`,
       },
     ];
   },

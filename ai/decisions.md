@@ -738,3 +738,66 @@ conventional-commit discipline the repo doesn't follow, the latter changes the t
 to "merge a release PR"; the custom script is dependency-free and keeps the
 "press button → get draft release with binaries" UX. Revisit if a CHANGELOG or
 commit-derived versions are ever wanted.
+
+## 24. Startup defaults & Shift-constrained wall drawing
+
+**Problem**: the app opened zoom-to-fit (100% for an empty plan) in select mode;
+both defaults fight the primary workflow — opening the app to draw walls. Separately,
+freehand wall chains made exactly-horizontal/vertical/45° walls tedious (the 1°
+axis-align snap only helps near-axis cursors).
+
+**Decision**: startup zoom is 15% (`viewport.DEFAULT_ZOOM = 0.15 × BASE_PX_PER_CM`)
+and the default tool is Draw wall. On first layout the canvas only CENTERS the doc
+bbox at that zoom — the old auto `fit()` on load was removed (it would have
+overridden the 15%); explicit zoom-to-fit stays a toolbar/import action. With no
+content the view centers on the origin.
+
+While a wall chain is active, holding Shift direction-locks the preview to the
+nearest of the 8 rays (every 45°) from the chain anchor: `geometry.snapDir45`
+(pure, exact axis vectors — H/V results never pick up cos(π/2) float dust). The
+lock is strict and overrides ALL other snapping, including joint attach (a 30°
+attach would break the lock); the chain can still be closed because a click
+within MIN_WALL_LENGTH of the anchor ends it regardless. With snap enabled the
+wall LENGTH is rounded to whole cm along the locked ray (H/V coords stay
+integral; 45° walls have an irrational direction, so length is the snappable
+quantity). Shift before the first click is a no-op — there is no anchor to
+constrain relative to. `shiftHeld` rides the existing pointer events
+(`move`/`pointerDown` carry `e.shiftKey`); no keyboard listeners, so a
+focus-dependent keydown leak can't desync it.
+
+**Trade-offs**: strict locking means Shift can't be used to snap the endpoint to
+an off-axis joint — release Shift for that. Rounding length instead of both
+coordinates keeps diagonals exactly on 45° at the cost of non-integer endpoint
+coords; `fmtCm` display precision hides the difference.
+
+## 25. Primary wall vertex: length edits move the grabbed end
+
+**Problem**: a selected wall shows two equal endpoint handles, but inspector
+length edits always grew the wall from the END side. A user who thinks in terms
+of "the vertex I touched" has no way to say WHICH end should travel.
+
+**Decision**: one end of the selected wall is PRIMARY — rendered with an amber
+ring (the other stays blue). It is set by interaction, never persisted:
+
+- clicking a wall's endpoint handle makes that vertex primary;
+- clicking the wall body makes the end CLOSEST to the click primary;
+- selection changes without a click position (openings, programmatic selects)
+  keep the current primary when the same wall is re-selected and reset to
+  'end' (the historical behavior) when a different wall is picked.
+
+The ONLY logic it changes: `setLength`/`setInnerLength` grew a `move` parameter
+('start' | 'end', default 'end' = the old behavior) — the primary vertex MOVES
+along the wall's axis while the opposite end stays fixed. Geometry is shared
+with joint dragging (`moveJoint`), so openings clamp identically on both sides;
+inner-span math (extS/extE from neighbor thicknesses) is move-agnostic. Drag
+behavior, highlighting, dimension lines — unchanged.
+
+Plumbing: `ui.primaryEnd` (+ `ui.select(wallId, primary?)`, `ui.setWallPrimary`)
+holds the UI state; `scene.handleJoints` tags each handle `primary: boolean`;
+Canvas colors the amber ring (`class:primary`) and computes closest-end on
+wall-body clicks via `dist(world, jointA) <= dist(world, jointB)`.
+
+**Trade-offs**: a shared corner handle clicked on a NEIGHBOR wall's handle
+(during joint drag) still sets primary per the selected wall only — harmless
+since handles render solely for highlighted walls. 'end' default keeps every
+programmatic selection path at the pre-feature behavior.

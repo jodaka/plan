@@ -60,7 +60,10 @@ $effect(() => {
   viewport.setViewSize(wrapW, wrapH);
   if (!fitted && wrapW > 0 && wrapH > 0) {
     fitted = true;
-    viewport.fit(docBBox(plan.doc));
+    // Startup keeps the default zoom (15% — viewport.DEFAULT_ZOOM) and only
+    // centers the doc in the viewport; explicit zoom-to-fit is toolbar-only.
+    const bbox = docBBox(plan.doc);
+    viewport.centerOn(bbox ? { x: (bbox.minX + bbox.maxX) / 2, y: (bbox.minY + bbox.maxY) / 2 } : { x: 0, y: 0 });
   }
 });
 
@@ -270,7 +273,7 @@ function onPointerDown(e: PointerEvent) {
   const itemHandle = itemId ? (target.closest('[data-item-handle]')?.getAttribute('data-item-handle') ?? null) : null;
 
   if (ui.tool === 'draw') {
-    drawWall.pointerDown(world);
+    drawWall.pointerDown(world, e.shiftKey);
     return;
   }
   if (ui.tool === 'ruler') {
@@ -279,6 +282,15 @@ function onPointerDown(e: PointerEvent) {
   }
 
   if (jointHit && plan.doc.joints[jointHit]) {
+    // clicking an endpoint handle of the selected wall makes that vertex
+    // primary (amber): inspector length edits will move it (§25). The same
+    // joint may serve a neighbor wall, but primary is per SELECTED wall.
+    const sel = ui.selectedWallId ? plan.doc.walls[ui.selectedWallId] : null;
+    if (sel && sel.startJointId === jointHit) {
+      ui.setWallPrimary('start');
+    } else if (sel && sel.endJointId === jointHit) {
+      ui.setWallPrimary('end');
+    }
     jointDrag.start(jointHit);
     return;
   }
@@ -322,8 +334,13 @@ function onPointerDown(e: PointerEvent) {
   }
   if (wallHit && plan.doc.walls[wallHit]) {
     // walls are selected but not translatable: moving a whole wall would
-    // silently change connected walls' lengths and angles (see decisions §7)
-    ui.select(wallHit);
+    // silently change connected walls' lengths and angles (see decisions §7).
+    // The click also picks the primary vertex: the end closest to the cursor
+    // is the one inspector length edits will move (§25).
+    const w = plan.doc.walls[wallHit];
+    const a = plan.doc.joints[w.startJointId];
+    const b = plan.doc.joints[w.endJointId];
+    ui.select(wallHit, a && b && dist(world, a) <= dist(world, b) ? 'start' : 'end');
     return;
   }
   // empty space: selecting a room when the click lands inside one, else deselect
@@ -357,7 +374,7 @@ function onPointerMove(e: PointerEvent) {
     jointDrag.apply(world);
     return;
   }
-  drawWall.move(world);
+  drawWall.move(world, e.shiftKey);
   ruler.move(world);
 }
 
@@ -568,10 +585,12 @@ const cursorClass = $derived.by(() => {
           flip={scene.selectedOpeningHints.flip} />
       {/if}
 
-      <!-- endpoint handles for the selected wall, above everything -->
+      <!-- endpoint handles for the selected wall, above everything; the
+           primary vertex (amber ring) is the one inspector length edits move -->
       {#each scene.handleJoints as j (j.id)}
         <circle
           class="handle"
+          class:primary={j.primary}
           data-joint-id={j.id}
           cx={j.x}
           cy={j.y}
@@ -741,6 +760,10 @@ svg.canvas.cursor-grabbing {
   fill: #ffffff;
   stroke: #2563eb;
   cursor: grab;
+}
+/* primary wall vertex: the end inspector length edits move (§25) */
+:global(svg.canvas .handle.primary) {
+  stroke: #f59e0b;
 }
 :global(svg.canvas .item-handle) {
   cursor: nwse-resize;

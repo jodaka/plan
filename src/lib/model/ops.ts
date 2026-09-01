@@ -216,8 +216,12 @@ export function setThickness(doc: PlanDoc, wallId: WallId, thickness: number): P
   return copyDoc(next, { joints: next.joints, walls });
 }
 
-/** Sets wall length by moving its end joint along the current direction. */
-export function setLength(doc: PlanDoc, wallId: WallId, lengthCm: number): PlanDoc {
+/**
+ * Sets wall length along the current direction by moving ONE endpoint —
+ * `move` names the (primary) vertex that travels; the opposite end stays
+ * fixed. Defaults to 'end', the pre-primary behavior.
+ */
+export function setLength(doc: PlanDoc, wallId: WallId, lengthCm: number, move: 'start' | 'end' = 'end'): PlanDoc {
   const w = doc.walls[wallId];
   if (!w) {
     return doc;
@@ -235,6 +239,9 @@ export function setLength(doc: PlanDoc, wallId: WallId, lengthCm: number): PlanD
     return doc;
   }
   const k = l / cur;
+  if (move === 'start') {
+    return moveJoint(doc, w.startJointId, { x: b.x - vx * k, y: b.y - vy * k });
+  }
   return moveJoint(doc, w.endJointId, { x: a.x + vx * k, y: a.y + vy * k });
 }
 
@@ -242,15 +249,17 @@ export function setLength(doc: PlanDoc, wallId: WallId, lengthCm: number): PlanD
  * Sets the wall's INNER (clear) length — the value the inspector exposes.
  * The centerline target is inner + joint extensions (neighbor t/2 per end),
  * so the typed value matches what the wall measures between its neighbors.
+ * `move` picks which endpoint travels (the wall's primary vertex — see
+ * ai/decisions.md §25); the other end stays put.
  */
-export function setInnerLength(doc: PlanDoc, wallId: WallId, innerCm: number): PlanDoc {
+export function setInnerLength(doc: PlanDoc, wallId: WallId, innerCm: number, move: 'start' | 'end' = 'end'): PlanDoc {
   const w = doc.walls[wallId];
   if (!w) {
     return doc;
   }
   const extS = jointExtCm(doc, wallId, w.startJointId);
   const extE = jointExtCm(doc, wallId, w.endJointId);
-  return setLength(doc, wallId, innerCm + extS + extE);
+  return setLength(doc, wallId, innerCm + extS + extE, move);
 }
 
 /** Deletes a wall along with all openings mounted in it (windows, doors),

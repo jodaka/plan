@@ -33,7 +33,7 @@ let { shapes, tone = '' }: Props = $props();
         y2={s.y2}
         style="stroke-width: calc(1px * var(--inv));" />
     {:else if s.el === 'circle'}
-      <circle class={s.part ?? 'body'} cx={s.cx} cy={s.cy} r={s.r} style="stroke-width: 1;" />
+      <circle class={s.part ?? 'body'} cx={s.cx} cy={s.cy} r={s.r} style="stroke-width: calc(1px * var(--inv));" />
     {:else}
       <path class={s.part ?? 'body'} d={s.d} style="stroke-width: calc(1px * var(--inv));" />
     {/if}
@@ -41,30 +41,36 @@ let { shapes, tone = '' }: Props = $props();
 </g>
 
 <style>
+/* Plan-symbol palette (neutral 250 hue, app oklch tokens). Silhouette =
+     light fill + dark hairline; interior linework is stroke-only; hinge dots
+     stay 2 SCREEN px at any zoom, like DoorView. */
 .body {
-  fill: #e2e8f0;
-  stroke: #475569;
+  fill: oklch(97.5% 0.004 250);
+  stroke: oklch(48% 0.015 250);
 }
 .detail {
-  fill: #f1f5f9;
-  fill-opacity: 0.6;
-  stroke: #94a3b8;
+  fill: none;
+  stroke: oklch(55% 0.012 250);
 }
 .hinge {
-  fill: #64748b;
+  fill: oklch(48% 0.015 250);
+  r: calc(2px * var(--inv));
 }
 .flagged .body {
-  fill: #fecaca;
-  stroke: #dc2626;
+  fill: oklch(95% 0.045 25);
+  stroke: oklch(55% 0.2 25);
 }
 .flagged .detail {
-  fill: #fee2e2;
-  fill-opacity: 0.7;
-  stroke: #dc2626;
+  fill: none;
+  stroke: oklch(55% 0.2 25);
 }
 .orphan .body {
-  fill: #f8fafc;
-  stroke: #94a3b8;
-  stroke-dasharray: 4 3;
+  fill: oklch(98.5% 0.002 250);
+  stroke: oklch(65% 0.01 250);
+  stroke-dasharray: calc(4px * var(--inv)) calc(3px * var(--inv));
+}
+.orphan .detail {
+  fill: none;
+  stroke: oklch(72% 0.008 250);
 }
 </style>

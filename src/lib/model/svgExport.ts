@@ -18,6 +18,7 @@ const EXPORT_PROPS = new Set([
   'stroke-dasharray',
   'stroke-dashoffset',
   'opacity',
+  'r',
   'paint-order',
   'color',
   'font-family',
