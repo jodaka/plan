@@ -35,14 +35,14 @@ automatable. What does not work either:
 Reliable path — write the doc into localStorage and reload:
 
 1. `demo.json` is `{app, appVersion, exportedAt, doc}` — extract `.doc` and
-   stringify it as the value of `floorplanner.doc.v1`. In dev, Vite serves
+   stringify it as the value of `plan.doc.v1`. In dev, Vite serves
    project-root files, so `fetch('/demo.json')` works from the page:
 
    ```js
    async () => {
      const res = await fetch('/demo.json');
      const { doc } = await res.json();
-     localStorage.setItem('floorplanner.doc.v1', JSON.stringify(doc));
+     localStorage.setItem('plan.doc.v1', JSON.stringify(doc));
      location.reload();
    }
    ```

@@ -2,7 +2,7 @@ import { browser } from '$app/environment';
 import type { PlanDoc } from '../types';
 import { sanitizeDoc } from './validate';
 
-const STORAGE_KEY = 'floorplanner.doc.v1';
+const STORAGE_KEY = 'plan.doc.v1';
 
 export function loadSavedDoc(): PlanDoc | null {
   if (!browser) {

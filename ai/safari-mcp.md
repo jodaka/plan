@@ -18,7 +18,7 @@
   log (5173 is often taken).
 - **Loading a plan**: file-input automation is flaky everywhere — write the
   doc into localStorage and reload (see `ai/firefox-mcp.md` "Loading a plan";
-  same `floorplanner.doc.v1` key works here).
+  same `plan.doc.v1` key works here).
 - **Simulating wheel zoom**: dispatch real WheelEvents on `svg.canvas`, one
   per `requestAnimationFrame` (see `ai/firefox-mcp.md` "Simulating wheel
   zoom" — sync loops over-shoot the rAF-batched queue).

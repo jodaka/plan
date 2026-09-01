@@ -2,7 +2,7 @@ import { APP_VERSION } from '../version';
 import type { PlanDoc } from '../types';
 import { sanitizeDoc } from './validate';
 
-const EXPORT_APP = 'floorplanner';
+const EXPORT_APP = 'plan';
 
 interface ExportPayload {
   app: string;
@@ -42,7 +42,7 @@ export function parseImport(text: string): ImportResult {
   if (typeof rec.appVersion !== 'string' || rec.appVersion.length === 0) {
     return {
       ok: false,
-      error: 'missing app version metadata, so this is not a floorplanner export',
+      error: 'Missing app version metadata, so this is not a Plan export',
     };
   }
   const fileMajor = Number.parseInt(rec.appVersion.split('.')[0] ?? '', 10);

@@ -13,7 +13,7 @@ describe('io', () => {
 
 	test('export payload carries metadata', () => {
 		const raw = JSON.parse(serializeExport(emptyDoc())) as Record<string, unknown>;
-		expect(raw.app).toBe('floorplanner');
+		expect(raw.app).toBe('plan');
 		expect(raw.appVersion).toBe(APP_VERSION);
 		expect(typeof raw.exportedAt).toBe('string');
 	});
@@ -32,7 +32,7 @@ describe('io', () => {
 
 	test('rejects files from a newer major version', () => {
 		const payload = {
-			app: 'floorplanner',
+			app: 'plan',
 			appVersion: '99.0.0',
 			exportedAt: '2026-01-01T00:00:00Z',
 			doc: emptyDoc()
@@ -44,7 +44,7 @@ describe('io', () => {
 
 	test('accepts same-version metadata with valid doc', () => {
 		const payload = {
-			app: 'floorplanner',
+			app: 'plan',
 			appVersion: '0.0.1',
 			exportedAt: '2026-01-01T00:00:00Z',
 			doc: emptyDoc()
@@ -54,7 +54,7 @@ describe('io', () => {
 
 	test('rejects valid metadata but broken plan data', () => {
 		const payload = {
-			app: 'floorplanner',
+			app: 'plan',
 			appVersion: APP_VERSION,
 			exportedAt: '2026-01-01T00:00:00Z',
 			doc: { version: 1, joints: {}, walls: { w1: { garbage: true } } }

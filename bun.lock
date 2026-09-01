@@ -3,7 +3,7 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "floorplanner",
+      "name": "plan",
       "devDependencies": {
         "@biomejs/biome": "^2.5.10",
         "@inlang/paraglide-js": "^2.24.1",
