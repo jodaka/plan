@@ -1,5 +1,17 @@
 pre-commit:
   commands:
+    lockfiles:
+      # Hard guard: this repo is bun-only. Foreign lockfiles here silently break
+      # tooling (e.g. tauri-action picks pnpm before bun and CI builds fail).
+      run: |
+        staged=$(git diff --cached --name-only --diff-filter=ACMR)
+        bad=$(printf '%s\n' "$staged" | grep -E '(^|/)(pnpm-lock\.yaml|pnpm-workspace\.yaml|package-lock\.json|npm-shrinkwrap\.json|yarn\.lock|bun\.lockb)$' || true)
+        if [ -n "$bad" ]; then
+          echo "✗ Foreign package-manager files staged — this repo is bun-only (bun.lock):"
+          echo "$bad"
+          echo "Unstage with: git restore --staged <file>  (git rm --cached if the file is tracked)"
+          exit 1
+        fi
     biome:
       run: bunx biome check --write --no-errors-on-unmatched --staged
       stage_fixed: true

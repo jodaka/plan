@@ -31,8 +31,10 @@ bun run release    # release helper: bump version everywhere, commit, tag vX.Y.Z
   with the formatter.
 - Commits are guarded by a lefthook `pre-commit` hook (installed via the `prepare` script):
   staged files must pass `biome check --staged` (auto-fixable issues are fixed and re-staged)
-  and the whole project must pass `svelte-check`. Code with lint/format/type errors cannot
-  be committed — fix it rather than bypassing the hook (`--no-verify` only as a last resort).
+  and the whole project must pass `svelte-check`. A `lockfiles` guard command additionally
+  rejects foreign package-manager files (pnpm/yarn/npm lockfiles, `bun.lockb`) — this repo
+  is bun-only (`bun.lock`). Code with lint/format/type errors cannot be committed — fix it
+  rather than bypassing the hook (`--no-verify` only as a last resort).
 - Ensure you are documenting all the code you write with comments. Update ./ai/decisions.md 
   as necessary.
 - Try to use as little 3rd party npm modules as possible

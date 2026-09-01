@@ -1,5 +1,14 @@
 node_modules
 
+# Package managers — this repo is bun-only (bun.lock). Never commit foreign lockfiles.
+pnpm-lock.yaml
+pnpm-workspace.yaml
+package-lock.json
+npm-shrinkwrap.json
+yarn.lock
+.yarn/
+bun.lockb
+
 # Output
 .output
 .vercel
