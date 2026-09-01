@@ -222,11 +222,7 @@ button:disabled {
 
 .toolbarIcon {
   padding: 1px;
-}
-
-.toolbarIcon :global(svg) {
-  width: 100%;
-  display: block;
+  width: 30px;
 }
 
 .zoomGroup {

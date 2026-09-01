@@ -669,3 +669,28 @@ pan keeps the grid because it never rescales the pattern tile). The `<defs>` pat
 stays mounted — an unused pattern rasterizes nothing, so the grid reappears at gesture
 end without a remount hitch. Verified: the 13–17% oscillation drops from
 median ≈ 17–25 ms/frame to 8.3 ms with the fix, identical to the no-grid baseline.
+
+**Follow-up (2026-08, grid OFF): zoom still stutters on Firefox Beta — full-scene
+re-upload per wheel frame.** Two profiler.firefox.com captures (with the grid toggled
+off entirely) show the same signature: app main thread idle (worst eventDelay 4.2 ms,
+≈0.1 s CPU over 8.5 s) while the GPU process's Renderer thread burns 4.5 s of CPU
+(0.5–0.88 s per wall-clock second through the gesture). Per frame: `Texture uploads`
+markers report 40–52 MB across 200–250 texture-cache items, `NumPictureCacheInvalidated`
+fires on ~90 % of frames — i.e. every wheel step applies a new unique scale
+(`viewport.zoomAt`), which invalidates the whole picture cache and re-rasterizes +
+re-uploads the full scene (rooms + walls + items) at 2× DPR (user window 3456×2168
+physical ≈ 30 MB backbuffer). The upload work runs through macOS's OpenGL.framework
+(`GLDContextRec::updateTextureState`, `glgVectorCopy`, `AppleMetalOpenGLRenderer` —
+GL-over-Metal with CPU-side copies), so raster+upload is CPU-bound on the render
+thread → dropped vsyncs (frame cadence p50 11–12 ms, p90 27–55 ms). Caveat: in these
+captures the profiler's screenshot feature grabbed a full-window image every frame
+(307 captures ≈ 308 frames) and ALL >30 ms frame gaps coincide with captures, so the
+recorded extremes overstate the base jank. Same machine, same plan, same viewport,
+Firefox 155 without profiler: median 8.3 ms / p95 9.1 ms — smooth — so severity is
+Firefox-build/_GL-path dependent. Candidate app-side mitigations if it resurfaces:
+(1) quantize scale steps during the gesture (~1–2 % increments, exact on settle) to
+cut re-raster frequency; (2) Figma-style raster proxy — rasterize the scene at reduced
+resolution while zooming and restore at settle (~4× less upload at 2× DPR). A
+~10 Hz application throttle was tried first (2026-09) and reverted: it cut the
+re-raster frequency as predicted but made the gesture visibly steppy — rejected
+on feel.
